@@ -2,8 +2,9 @@ package rrr
 
 import (
 	"context"
-
-	"github.com/google/uuid"
+	"crypto/sha1"
+	"encoding/hex"
+	"strings"
 )
 
 // MetadataRequestResponse struct contains metadata specific to a request and
@@ -80,9 +81,14 @@ func NewRequest(repo_id, commit_id, object_id, text string) (Request, error) {
 		return Request{}, ErrNewRequestEmptyText
 	}
 
+	// create a unique ID by taking the SHA1 hash of the input strings
+	// separated by the ResultSeparatorUID
+	elements := []string{repo_id, commit_id, object_id, text}
+	sum := sha1.Sum([]byte(strings.Join(elements, ResultSeparatorUID)))
+
 	return Request{
 		MetadataRequestResponse: MetadataRequestResponse{
-			ID: uuid.NewString(),
+			ID: hex.EncodeToString(sum[:]),
 			Commit: MetadataRequestResponseCommit{
 				ID: commit_id,
 			},

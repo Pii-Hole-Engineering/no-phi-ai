@@ -14,12 +14,14 @@ func TestNewRequest(t *testing.T) {
 	commitID := "test-commit"
 	objectID := "test-object"
 	text := "test-text"
+	expected_hash := "0be325f9ba1df76ddfcf60fe972f3b0f06781ac1"
 
 	t.Run("ValidInput", func(t *testing.T) {
 		request, err := NewRequest(repoID, commitID, objectID, text)
 
 		assert.NoError(t, err)
 		assert.NotEmpty(t, request.ID)
+		assert.Equal(t, expected_hash, request.ID)
 		assert.Equal(t, commitID, request.Commit.ID)
 		assert.Equal(t, objectID, request.Object.ID)
 		assert.Equal(t, repoID, request.Repository.ID)

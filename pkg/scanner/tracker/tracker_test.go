@@ -924,32 +924,95 @@ func TestKeyTracker_GetKeysData(t *testing.T) {
 	}
 
 	// add some test data to the tracker
-	test_key_1 := "test_key_1"
-	test_data_1 := KeyData{
+	test_key_init := "test_key_init"
+	test_data_init := KeyData{
 		Code:  KeyCodeInit,
 		State: KeyStateInit,
 	}
-	tracker.keys[test_key_1] = test_data_1
-	test_key_2 := "test_key_2"
-	test_data_2 := KeyData{
-		Code:    KeyCodeComplete,
-		Message: test_message_complete,
-		State:   KeyStateComplete,
-	}
-	tracker.keys[test_key_2] = test_data_2
-	test_key_3 := "test_key_3"
-	test_data_3 := KeyData{
+	tracker.keys[test_key_init] = test_data_init
+	test_key_error := "test_key_error"
+	test_data_error := KeyData{
 		Code:    KeyCodeError,
 		Message: test_message_error,
 		State:   KeyStateError,
 	}
-	tracker.keys[test_key_3] = test_data_3
+	tracker.keys[test_key_error] = test_data_error
+	test_key_ignore := "test_key_ignore"
+	test_data_ignore := KeyData{
+		Code:    KeyCodeIgnore,
+		Message: test_message_ignore,
+		State:   KeyStateIgnore,
+	}
+	tracker.keys[test_key_ignore] = test_data_ignore
+	test_key_pending := "test_key_pending"
+	test_data_pending := KeyData{
+		Code:    KeyCodePending,
+		Message: test_message_pending,
+		State:   KeyStatePending,
+	}
+	tracker.keys[test_key_pending] = test_data_pending
+	test_key_complete_1 := "test_key_complete_1"
+	test_data_complete_1 := KeyData{
+		Code:    KeyCodeComplete,
+		Message: test_message_complete,
+		State:   KeyStateComplete,
+	}
+	tracker.keys[test_key_complete_1] = test_data_complete_1
+	test_key_complete_2 := "test_key_complete_2"
+	test_data_complete_2 := KeyData{
+		Code:    KeyCodeComplete,
+		Message: test_message_complete,
+		State:   KeyStateComplete,
+	}
+	tracker.keys[test_key_complete_2] = test_data_complete_2
 
 	// call the GetKeysData method
 	keysData := tracker.GetKeysData()
-
 	// check if the returned map is equal to the original keys map
 	assert.Equal(t, tracker.keys, keysData)
+
+	// get KeyData for each element where the Code is KeyCodeInit
+	keys_data_init, init_err := tracker.GetKeysDataForCode(KeyCodeInit)
+	assert.NoError(t, init_err)
+	assert.Equal(t, 1, len(keys_data_init))
+	assert.Equal(t, map[string]KeyData{test_key_init: test_data_init}, keys_data_init)
+
+	// get KeyData for each element where the Code is KeyCodeError
+	keys_data_error, error_err := tracker.GetKeysDataForCode(KeyCodeError)
+	assert.NoError(t, error_err)
+	assert.Equal(t, 1, len(keys_data_error))
+	assert.Equal(t, map[string]KeyData{test_key_error: test_data_error}, keys_data_error)
+
+	// get KeyData for each element where the Code is KeyCodeIgnore
+	keys_data_ignore, ignore_err := tracker.GetKeysDataForCode(KeyCodeIgnore)
+	assert.NoError(t, ignore_err)
+	assert.Equal(t, 1, len(keys_data_ignore))
+	assert.Equal(t, map[string]KeyData{test_key_ignore: test_data_ignore}, keys_data_ignore)
+
+	// get KeyData for each element where the Code is KeyCodePending
+	keys_data_pending, pending_err := tracker.GetKeysDataForCode(KeyCodePending)
+	assert.NoError(t, pending_err)
+	assert.Equal(t, 1, len(keys_data_pending))
+	assert.Equal(t, map[string]KeyData{test_key_pending: test_data_pending}, keys_data_pending)
+
+	// get KeyData for each element where the Code is KeyCodeComplete
+	keys_data_complete, complete_err := tracker.GetKeysDataForCode(KeyCodeComplete)
+	assert.NoError(t, complete_err)
+	assert.Equal(t, 2, len(keys_data_complete))
+	assert.Equal(
+		t,
+		map[string]KeyData{
+			test_key_complete_1: test_data_complete_1,
+			test_key_complete_2: test_data_complete_2,
+		},
+		keys_data_complete,
+	)
+
+	_, err_low := tracker.GetKeysDataForCode(KeyCodeInit - 1)
+	assert.ErrorContains(t, err_low, ErrKeyCodeInvalid.Error())
+
+	_, err_high := tracker.GetKeysDataForCode(KeyCodeComplete + 1)
+	assert.ErrorContains(t, err_high, ErrKeyCodeInvalid.Error())
 }
 
 // TestKeyTracker_PrintCodes unit test function tests the PrintCodes() method
@@ -1044,34 +1107,86 @@ func TestKeyTracker_Update(t *testing.T) {
 	zerolog.SetGlobalLevel(zerolog.DebugLevel)
 
 	type testData struct {
-		children    []string
-		code        int
-		expect_code int
-		message     string
+		children        []string
+		code            int
+		expect_code     int
+		expect_code_err error
+		message         string
 	}
 
 	tests := []struct {
 		name      string
 		data      []testData
 		final     KeyData
-		final_err error
+		init_err  error
+		key_empty bool
 		kind      string
 	}{
+		{
+			name: "InvalidCodeLow",
+			data: []testData{
+				{
+					children:        []string{},
+					code:            KeyCodeInit - 1,
+					expect_code:     0,
+					expect_code_err: ErrKeyCodeInvalid,
+					message:         "",
+				},
+			},
+			final:     KeyData{},
+			init_err:  nil,
+			key_empty: false,
+			kind:      ScanObjectTypeFile,
+		},
+		{
+			name: "InvalidCodeHigh",
+			data: []testData{
+				{
+					children:        []string{},
+					code:            KeyCodeComplete + 1,
+					expect_code:     0,
+					expect_code_err: ErrKeyCodeInvalid,
+					message:         "",
+				},
+			},
+			final:     KeyData{},
+			init_err:  nil,
+			key_empty: false,
+			kind:      ScanObjectTypeCommit,
+		},
+		{
+			name: "InvalidKey",
+			data: []testData{
+				{
+					children:        []string{},
+					code:            KeyCodeComplete,
+					expect_code:     0,
+					expect_code_err: ErrKeyUpdateKeyEmpty,
+					message:         "",
+				},
+			},
+			final:     KeyData{},
+			init_err:  nil,
+			key_empty: true,
+			kind:      ScanObjectTypeRequestResponse,
+		},
 		{
 			name:      "InvalidKind",
 			data:      []testData{},
 			final:     KeyData{},
-			final_err: ErrKeyTrackerInvalidKind,
+			init_err:  ErrKeyTrackerInvalidKind,
+			key_empty: false,
 			kind:      "InvalidKind",
 		},
 		{
 			name: "CodeInit",
 			data: []testData{
 				{
-					children:    []string{},
-					code:        KeyCodeInit,
-					expect_code: KeyCodeInit,
-					message:     "",
+					children:        []string{},
+					code:            KeyCodeInit,
+					expect_code:     KeyCodeInit,
+					expect_code_err: nil,
+					message:         "",
 				},
 			},
 			final: KeyData{
@@ -1080,23 +1195,26 @@ func TestKeyTracker_Update(t *testing.T) {
 				Message:  "",
 				State:    KeyStateInit,
 			},
-			final_err: nil,
+			init_err:  nil,
+			key_empty: false,
 			kind:      ScanObjectTypeCommit,
 		},
 		{
 			name: "CodeComplete",
 			data: []testData{
 				{
-					children:    []string{},
-					code:        KeyCodeInit,
-					expect_code: KeyCodeInit,
-					message:     "",
+					children:        []string{},
+					code:            KeyCodeInit,
+					expect_code:     KeyCodeInit,
+					expect_code_err: nil,
+					message:         "",
 				},
 				{
-					children:    []string{},
-					code:        KeyCodeComplete,
-					expect_code: KeyCodeComplete,
-					message:     "",
+					children:        []string{},
+					code:            KeyCodeComplete,
+					expect_code:     KeyCodeComplete,
+					expect_code_err: nil,
+					message:         "",
 				},
 			},
 			final: KeyData{
@@ -1105,23 +1223,26 @@ func TestKeyTracker_Update(t *testing.T) {
 				Message:  "",
 				State:    KeyStateComplete,
 			},
-			final_err: nil,
+			init_err:  nil,
+			key_empty: false,
 			kind:      ScanObjectTypeFile,
 		},
 		{
 			name: "CodeError",
 			data: []testData{
 				{
-					children:    []string{},
-					code:        KeyCodeInit,
-					expect_code: KeyCodeInit,
-					message:     "",
+					children:        []string{},
+					code:            KeyCodeInit,
+					expect_code:     KeyCodeInit,
+					expect_code_err: nil,
+					message:         "",
 				},
 				{
-					children:    []string{},
-					code:        KeyCodeError,
-					expect_code: KeyCodeError,
-					message:     test_message_error,
+					children:        []string{},
+					code:            KeyCodeError,
+					expect_code:     KeyCodeError,
+					expect_code_err: nil,
+					message:         test_message_error,
 				},
 			},
 			final: KeyData{
@@ -1130,41 +1251,47 @@ func TestKeyTracker_Update(t *testing.T) {
 				Message:  test_message_error,
 				State:    KeyStateError,
 			},
-			final_err: nil,
+			init_err:  nil,
+			key_empty: false,
 			kind:      ScanObjectTypeFile,
 		},
 		{
 			name: "Progression",
 			data: []testData{
 				{
-					children:    []string{},
-					code:        KeyCodeInit,
-					expect_code: KeyCodeInit,
-					message:     "",
+					children:        []string{},
+					code:            KeyCodeInit,
+					expect_code:     KeyCodeInit,
+					expect_code_err: nil,
+					message:         "",
 				},
 				{
-					children:    []string{},
-					code:        KeyCodeError,
-					expect_code: KeyCodeError,
-					message:     test_message_error,
+					children:        []string{},
+					code:            KeyCodeError,
+					expect_code:     KeyCodeError,
+					expect_code_err: nil,
+					message:         test_message_error,
 				},
 				{
-					children:    []string{},
-					code:        KeyCodeIgnore,
-					expect_code: KeyCodeIgnore,
-					message:     test_message_ignore,
+					children:        []string{},
+					code:            KeyCodeIgnore,
+					expect_code:     KeyCodeIgnore,
+					expect_code_err: nil,
+					message:         test_message_ignore,
 				},
 				{
-					children:    []string{"child1", "child2"},
-					code:        KeyCodePending,
-					expect_code: KeyCodePending,
-					message:     test_message_pending,
+					children:        []string{"child1", "child2"},
+					code:            KeyCodePending,
+					expect_code:     KeyCodePending,
+					expect_code_err: nil,
+					message:         test_message_pending,
 				},
 				{
-					children:    []string{"child1", "child2"},
-					code:        KeyCodeComplete,
-					expect_code: KeyCodeComplete,
-					message:     test_message_complete,
+					children:        []string{"child1", "child2"},
+					code:            KeyCodeComplete,
+					expect_code:     KeyCodeComplete,
+					expect_code_err: nil,
+					message:         test_message_complete,
 				},
 			},
 			final: KeyData{
@@ -1176,41 +1303,47 @@ func TestKeyTracker_Update(t *testing.T) {
 				Message: test_message_complete,
 				State:   KeyStateComplete,
 			},
-			final_err: nil,
+			init_err:  nil,
+			key_empty: false,
 			kind:      ScanObjectTypeFile,
 		},
 		{
 			name: "Regression",
 			data: []testData{
 				{
-					children:    []string{},
-					code:        KeyCodeComplete,
-					expect_code: KeyCodeComplete,
-					message:     test_message_complete,
+					children:        []string{},
+					code:            KeyCodeComplete,
+					expect_code:     KeyCodeComplete,
+					expect_code_err: nil,
+					message:         test_message_complete,
 				},
 				{
-					children:    []string{},
-					code:        KeyCodePending,
-					expect_code: KeyCodeComplete,
-					message:     test_message_pending,
+					children:        []string{},
+					code:            KeyCodePending,
+					expect_code:     KeyCodeComplete,
+					expect_code_err: nil,
+					message:         test_message_pending,
 				},
 				{
-					children:    []string{},
-					code:        KeyCodeIgnore,
-					expect_code: KeyCodeComplete,
-					message:     test_message_ignore,
+					children:        []string{},
+					code:            KeyCodeIgnore,
+					expect_code:     KeyCodeComplete,
+					expect_code_err: nil,
+					message:         test_message_ignore,
 				},
 				{
-					children:    []string{},
-					code:        KeyCodeError,
-					expect_code: KeyCodeComplete,
-					message:     test_message_error,
+					children:        []string{},
+					code:            KeyCodeError,
+					expect_code:     KeyCodeComplete,
+					expect_code_err: nil,
+					message:         test_message_error,
 				},
 				{
-					children:    []string{},
-					code:        KeyCodeInit,
-					expect_code: KeyCodeComplete,
-					message:     test_message_init,
+					children:        []string{},
+					code:            KeyCodeInit,
+					expect_code:     KeyCodeComplete,
+					expect_code_err: nil,
+					message:         test_message_init,
 				},
 			},
 			final: KeyData{
@@ -1219,29 +1352,33 @@ func TestKeyTracker_Update(t *testing.T) {
 				Message:  test_message_complete,
 				State:    KeyStateComplete,
 			},
-			final_err: nil,
+			init_err:  nil,
+			key_empty: false,
 			kind:      ScanObjectTypeFile,
 		},
 		{
 			name: "ReInit",
 			data: []testData{
 				{
-					children:    []string{},
-					code:        KeyCodeInit,
-					expect_code: KeyCodeInit,
-					message:     "",
+					children:        []string{},
+					code:            KeyCodeInit,
+					expect_code:     KeyCodeInit,
+					expect_code_err: nil,
+					message:         "",
 				},
 				{
-					children:    []string{},
-					code:        KeyCodeComplete,
-					expect_code: KeyCodeComplete,
-					message:     test_message_complete,
+					children:        []string{},
+					code:            KeyCodeComplete,
+					expect_code:     KeyCodeComplete,
+					expect_code_err: nil,
+					message:         test_message_complete,
 				},
 				{
-					children:    []string{},
-					code:        KeyCodeInit,
-					expect_code: KeyCodeComplete,
-					message:     test_message_init,
+					children:        []string{},
+					code:            KeyCodeInit,
+					expect_code:     KeyCodeComplete,
+					expect_code_err: nil,
+					message:         test_message_init,
 				},
 			},
 			final: KeyData{
@@ -1250,71 +1387,82 @@ func TestKeyTracker_Update(t *testing.T) {
 				Message:  test_message_complete,
 				State:    KeyStateComplete,
 			},
-			final_err: nil,
+			init_err:  nil,
+			key_empty: false,
 			kind:      ScanObjectTypeFile,
 		},
 		{
 			name: "RepeatUpdatePending",
 			data: []testData{
 				{
-					children:    []string{"child1"},
-					code:        KeyCodePending,
-					expect_code: KeyCodePending,
-					message:     test_message_pending,
+					children:        []string{"child1"},
+					code:            KeyCodePending,
+					expect_code:     KeyCodePending,
+					expect_code_err: nil,
+					message:         test_message_pending,
 				},
 				{
-					children:    []string{"child2"},
-					code:        KeyCodePending,
-					expect_code: KeyCodePending,
-					message:     test_message_pending,
+					children:        []string{"child2"},
+					code:            KeyCodePending,
+					expect_code:     KeyCodePending,
+					expect_code_err: nil,
+					message:         test_message_pending,
 				},
 				{
-					children:    []string{"child3"},
-					code:        KeyCodePending,
-					expect_code: KeyCodePending,
-					message:     test_message_pending,
+					children:        []string{"child3"},
+					code:            KeyCodePending,
+					expect_code:     KeyCodePending,
+					expect_code_err: nil,
+					message:         test_message_pending,
 				},
 				{
-					children:    []string{"child4"},
-					code:        KeyCodePending,
-					expect_code: KeyCodePending,
-					message:     test_message_pending,
+					children:        []string{"child4"},
+					code:            KeyCodePending,
+					expect_code:     KeyCodePending,
+					expect_code_err: nil,
+					message:         test_message_pending,
 				},
 				{
-					children:    []string{"child5"},
-					code:        KeyCodePending,
-					expect_code: KeyCodePending,
-					message:     test_message_pending,
+					children:        []string{"child5"},
+					code:            KeyCodePending,
+					expect_code:     KeyCodePending,
+					expect_code_err: nil,
+					message:         test_message_pending,
 				},
 				{
-					children:    []string{"child6"},
-					code:        KeyCodePending,
-					expect_code: KeyCodePending,
-					message:     test_message_pending,
+					children:        []string{"child6"},
+					code:            KeyCodePending,
+					expect_code:     KeyCodePending,
+					expect_code_err: nil,
+					message:         test_message_pending,
 				},
 				{
-					children:    []string{"child7"},
-					code:        KeyCodePending,
-					expect_code: KeyCodePending,
-					message:     test_message_pending,
+					children:        []string{"child7"},
+					code:            KeyCodePending,
+					expect_code:     KeyCodePending,
+					expect_code_err: nil,
+					message:         test_message_pending,
 				},
 				{
-					children:    []string{"child8"},
-					code:        KeyCodePending,
-					expect_code: KeyCodePending,
-					message:     test_message_pending,
+					children:        []string{"child8"},
+					code:            KeyCodePending,
+					expect_code:     KeyCodePending,
+					expect_code_err: nil,
+					message:         test_message_pending,
 				},
 				{
-					children:    []string{"child9"},
-					code:        KeyCodePending,
-					expect_code: KeyCodePending,
-					message:     test_message_pending,
+					children:        []string{"child9"},
+					code:            KeyCodePending,
+					expect_code:     KeyCodePending,
+					expect_code_err: nil,
+					message:         test_message_pending,
 				},
 				{
-					children:    []string{"child10"},
-					code:        KeyCodePending,
-					expect_code: KeyCodePending,
-					message:     test_message_pending,
+					children:        []string{"child10"},
+					code:            KeyCodePending,
+					expect_code:     KeyCodePending,
+					expect_code_err: nil,
+					message:         test_message_pending,
 				},
 			},
 			final: KeyData{
@@ -1334,71 +1482,82 @@ func TestKeyTracker_Update(t *testing.T) {
 				Message: test_message_pending,
 				State:   KeyStatePending,
 			},
-			final_err: nil,
+			init_err:  nil,
+			key_empty: false,
 			kind:      ScanObjectTypeFile,
 		},
 		{
 			name: "RepeatUpdateComplete",
 			data: []testData{
 				{
-					children:    []string{"child1"},
-					code:        KeyCodeComplete,
-					expect_code: KeyCodeComplete,
-					message:     test_message_complete,
+					children:        []string{"child1"},
+					code:            KeyCodeComplete,
+					expect_code:     KeyCodeComplete,
+					expect_code_err: nil,
+					message:         test_message_complete,
 				},
 				{
-					children:    []string{"child2"},
-					code:        KeyCodeComplete,
-					expect_code: KeyCodeComplete,
-					message:     test_message_complete,
+					children:        []string{"child2"},
+					code:            KeyCodeComplete,
+					expect_code:     KeyCodeComplete,
+					expect_code_err: nil,
+					message:         test_message_complete,
 				},
 				{
-					children:    []string{"child3"},
-					code:        KeyCodeComplete,
-					expect_code: KeyCodeComplete,
-					message:     test_message_complete,
+					children:        []string{"child3"},
+					code:            KeyCodeComplete,
+					expect_code:     KeyCodeComplete,
+					expect_code_err: nil,
+					message:         test_message_complete,
 				},
 				{
-					children:    []string{"child4"},
-					code:        KeyCodeComplete,
-					expect_code: KeyCodeComplete,
-					message:     test_message_complete,
+					children:        []string{"child4"},
+					code:            KeyCodeComplete,
+					expect_code:     KeyCodeComplete,
+					expect_code_err: nil,
+					message:         test_message_complete,
 				},
 				{
-					children:    []string{"child5"},
-					code:        KeyCodeComplete,
-					expect_code: KeyCodeComplete,
-					message:     test_message_complete,
+					children:        []string{"child5"},
+					code:            KeyCodeComplete,
+					expect_code:     KeyCodeComplete,
+					expect_code_err: nil,
+					message:         test_message_complete,
 				},
 				{
-					children:    []string{"child6"},
-					code:        KeyCodeComplete,
-					expect_code: KeyCodeComplete,
-					message:     test_message_complete,
+					children:        []string{"child6"},
+					code:            KeyCodeComplete,
+					expect_code:     KeyCodeComplete,
+					expect_code_err: nil,
+					message:         test_message_complete,
 				},
 				{
-					children:    []string{"child7"},
-					code:        KeyCodeComplete,
-					expect_code: KeyCodeComplete,
-					message:     test_message_complete,
+					children:        []string{"child7"},
+					code:            KeyCodeComplete,
+					expect_code:     KeyCodeComplete,
+					expect_code_err: nil,
+					message:         test_message_complete,
 				},
 				{
-					children:    []string{"child8"},
-					code:        KeyCodeComplete,
-					expect_code: KeyCodeComplete,
-					message:     test_message_complete,
+					children:        []string{"child8"},
+					code:            KeyCodeComplete,
+					expect_code:     KeyCodeComplete,
+					expect_code_err: nil,
+					message:         test_message_complete,
 				},
 				{
-					children:    []string{"child9"},
-					code:        KeyCodeComplete,
-					expect_code: KeyCodeComplete,
-					message:     test_message_complete,
+					children:        []string{"child9"},
+					code:            KeyCodeComplete,
+					expect_code:     KeyCodeComplete,
+					expect_code_err: nil,
+					message:         test_message_complete,
 				},
 				{
-					children:    []string{"child10"},
-					code:        KeyCodeComplete,
-					expect_code: KeyCodeComplete,
-					message:     test_message_complete,
+					children:        []string{"child10"},
+					code:            KeyCodeComplete,
+					expect_code:     KeyCodeComplete,
+					expect_code_err: nil,
+					message:         test_message_complete,
 				},
 			},
 			final: KeyData{
@@ -1418,7 +1577,8 @@ func TestKeyTracker_Update(t *testing.T) {
 				Message: test_message_complete,
 				State:   KeyStateComplete,
 			},
-			final_err: nil,
+			init_err:  nil,
+			key_empty: false,
 			kind:      ScanObjectTypeFile,
 		},
 	}
@@ -1426,22 +1586,30 @@ func TestKeyTracker_Update(t *testing.T) {
 	for _, test_i := range tests {
 		t.Run(test_i.name, func(t *testing.T) {
 			tracker, err := NewKeyTracker(test_i.kind, &logger)
-			if test_i.final_err == nil {
+			if test_i.init_err == nil {
 				assert.NoError(t, err)
 			} else {
-				assert.ErrorIs(t, err, test_i.final_err)
+				assert.ErrorContains(t, err, test_i.init_err.Error())
 				return
 			}
 
+			test_key := test_i.name
+			if test_i.key_empty {
+				test_key = ""
+			}
 			for _, d := range test_i.data {
-				updated_code, update_err := tracker.Update(test_i.name, d.code, d.message, d.children)
+				updated_code, update_err := tracker.Update(test_key, d.code, d.message, d.children)
+				if d.expect_code_err != nil {
+					assert.ErrorContains(t, update_err, d.expect_code_err.Error())
+					return
+				}
 				assert.NoError(t, update_err)
 				assert.Exactly(t, d.expect_code, updated_code)
 			}
 
 			// get the data for the key after applying all updates
 			key_data, key_exists := tracker.Get(test_i.name)
-			if !assert.True(t, key_exists) {
+			if !assert.True(t, key_exists, "key should exist in tracker map") {
 				t.FailNow()
 			}
 			assert.Equal(t, test_i.final.Code, key_data.Code)

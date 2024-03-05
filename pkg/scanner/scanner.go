@@ -191,17 +191,14 @@ func (s *Scanner) processRequest(
 	chan_requests_out chan<- rrr.Request,
 	chan_errors_out chan<- error,
 ) {
-	// log the request
-	s.logger.Trace().Msgf(
-		"processing request %s : repository=%s : commit=%s : object=%s",
-		r.ID,
-		r.Repository.ID,
-		r.Commit.ID,
-		r.Object.ID,
-	)
 	// validate the request
 	if r.ID == "" {
 		chan_errors_out <- ErrProcessRequestNoID
+		return
+	}
+	// check if the request is already being tracked
+	if _, exists := s.TrackerRequests.Get(r.ID); exists {
+		s.logger.Debug().Msgf("skipping processing for existing request ID=%s", r.ID)
 		return
 	}
 	// update TrackerRequests to track the ID of the pending request
