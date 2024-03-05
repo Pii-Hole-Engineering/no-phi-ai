@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/Pii-Hole-Engineering/no-phi-ai/pkg/cfg"
+	nogit "github.com/Pii-Hole-Engineering/no-phi-ai/pkg/client/no-git"
 	"github.com/Pii-Hole-Engineering/no-phi-ai/pkg/scanner"
 	"github.com/Pii-Hole-Engineering/no-phi-ai/pkg/scanner/dryrun"
 	"github.com/Pii-Hole-Engineering/no-phi-ai/pkg/scanner/memory"
@@ -47,12 +48,23 @@ func ScannerTestEndToEnd(ctx context.Context, repo_url string) (e error) {
 		return
 	}
 
+	git_manager := nogit.NewGitManager(&config.Git, ctx)
+
+	repo_url = config.Git.Scan.Repositories[0]
+	// clone the repository
+	repository, repository_err := git_manager.CloneRepo(repo_url)
+	if repository_err != nil {
+		e = repository_err
+		return
+	}
+
+	dry_run_detector := dryrun.NewDryRunPhiDetector()
+
 	chan_scan_errors := make(chan error)
 	chan_requests := make(chan rrr.Request)
 	chan_responses := make(chan rrr.Response)
-	dry_run_detector := dryrun.NewDryRunPhiDetector()
 
-	go scanner.Scan(chan_scan_errors, chan_requests, chan_responses)
+	go scanner.Scan(repo_url, repository, chan_scan_errors, chan_requests, chan_responses)
 	go dry_run_detector.Run(ctx, chan_requests, chan_responses)
 
 	// wait for an error to be returned from the scanner

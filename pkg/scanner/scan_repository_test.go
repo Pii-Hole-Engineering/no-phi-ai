@@ -13,8 +13,8 @@ import (
 )
 
 var (
-	test_repo_name        = ".test_NO-PHI-AI"
-	test_repo_org         = "data-douser"
+	test_repo_name        = "learn"
+	test_repo_org         = "BlackIQ"
 	test_repo_scan_config = &cfg.GitScanConfig{
 		IgnoreRepositories: []string{},
 		Repositories:       []string{test_repo_url},

@@ -7,25 +7,26 @@ import (
 	"github.com/go-git/go-git/v5/plumbing/object"
 )
 
-// IgnorePaths is a map of paths that should not be scanned.
-var IgnorePaths = map[string]bool{
-	".git":   true,
-	"vendor": true,
-}
-
-// IgnoreFilenames is a map of file names that should not be scanned.
-var IgnoreFilenames = map[string]bool{
-	"":           true,
-	".gitignore": true,
-	"LOCK":       true,
-}
-
-// IgnoreExtensions is a map of file extensions that should not be scanned.
-var IgnoreExtensions = map[string]bool{
-	".":    true,
-	".jpg": true,
-	".png": true,
-}
+var (
+	// IgnoreExtensions is a map of file extensions that should not be scanned.
+	IgnoreExtensions = map[string]bool{
+		".":    true,
+		".jpg": true,
+		".png": true,
+	}
+	// IgnoreFilenames is a map of file names that should not be scanned.
+	IgnoreFilenames = map[string]bool{
+		"":           true,
+		".gitignore": true,
+		"LOCK":       true,
+	}
+	// IgnorePaths is a map of paths that should not be scanned.
+	IgnorePaths = map[string]bool{
+		".git":           true,
+		"php/crappy.php": true,
+		"vendor":         true,
+	}
+)
 
 // IgnoreFileObject() function can be used to check whether a file should be
 // ignored (i.e. not scanned) for any reason, such as:
@@ -37,29 +38,31 @@ var IgnoreExtensions = map[string]bool{
 // Returns a boolean to indicate whether the file object should be ignored, along
 // with a reason (string) if ignore=true.
 func IgnoreFileObject(file *object.File, supported_extensions, ignored_extensions []string) (ignore bool, reason string) {
+	if file == nil {
+		ignore = true
+		reason = IgnoreReasonFileObjectPointerNil
+		return
+	}
 	// ignore binary files
 	if is_binary, _ := file.IsBinary(); is_binary {
 		ignore = true
 		reason = IgnoreReasonFileIsBinary
 		return
 	}
-
 	// ignore empty files
 	if file.Size == 0 {
 		ignore = true
 		reason = IgnoreReasonFileIsEmpty
 		return
 	}
-
 	// check if the file path should be ignored by (app) policy
 	ignore, reason = IgnoreFilePath(file.Name)
 	if ignore && reason != "" {
 		return
 	}
-
 	// get the file extension from the path
 	file_extension := filepath.Ext(file.Name)
-	// check against each file extension that is explicitly ignored by (user) config
+	// check if the file extension is explicitly ignored by (user) config
 	for _, ignored_extension := range ignored_extensions {
 		if file_extension == ignored_extension {
 			ignore = true
@@ -67,7 +70,7 @@ func IgnoreFileObject(file *object.File, supported_extensions, ignored_extension
 			return
 		}
 	}
-
+	// check if the file extension is in the list of supported extensions
 	for _, ext := range supported_extensions {
 		if file_extension == ext {
 			ignore = false

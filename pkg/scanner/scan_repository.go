@@ -113,7 +113,7 @@ func (sr *ScanRepository) GetRepository() *git.Repository {
 
 // Scan() method runs the scan of the repository and keeps track of the
 // progress of the scan by updating private fields of the ScanRepository.
-func (sr *ScanRepository) Scan(gm *nogit.GitManager) (e error) {
+func (sr *ScanRepository) Scan() (e error) {
 	if sr.repository == nil {
 		return errors.Wrap(ErrScanRepositoryRepositoryNil, ErrMsgScanRepositoryScan)
 	}

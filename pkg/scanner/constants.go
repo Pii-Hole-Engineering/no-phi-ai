@@ -9,6 +9,7 @@ const IgnoreReasonFileExtensionIgnoredByPolicy string = "file_extension_ignored_
 const IgnoreReasonFileExtensionNotIncluded string = "file_extension_not_included"
 const IgnoreReasonFileIsBinary string = "file_is_binary"
 const IgnoreReasonFileIsEmpty string = "file_is_empty"
+const IgnoreReasonFileObjectPointerNil string = "file_object_pointer_nil"
 const IgnoreReasonFileName string = "file_name"
 const IgnoreReasonFilePath string = "file_path"
 
