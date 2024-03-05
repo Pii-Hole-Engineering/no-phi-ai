@@ -1,0 +1,20 @@
+{
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "golang.Go",
+        "github.copilot"
+      ]
+    }
+  },
+  "forwardPorts": [
+    3306,
+    8080
+  ],
+  "hostRequirements": {
+    "memory": "8gb",
+    "storage": "32gb"
+  },
+  "image": "mcr.microsoft.com/devcontainers/go",
+  "onCreateCommand": ".devcontainer/on-create-command.sh"
+}

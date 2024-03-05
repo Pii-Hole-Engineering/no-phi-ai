@@ -1,0 +1,39 @@
+---
+
+app:
+  log:
+    console_enable: true
+    console_pretty: true
+    file: ''
+    level: 'debug'
+  mode: 'cli'
+  name: 'no-phi-ai-test'
+
+azure_ai:
+  auth_key: 'YOUR-KEY-HERE'
+  confidence_threshold: 0.6
+  service: 'https://your-service-name.cognitiveservices.azure.com/'
+
+command:
+  run: 'version'
+
+git:
+  auth:
+    ssh_key_path: ''
+    token: 'test123'
+  scan:
+    organization: ''
+    repositories: []
+
+github:
+  app:
+    # integration_id cannot be 0 ; ERROR expected here...
+    integration_id: 0
+    webhook_secret: 'your-app-webhook-secret-here'
+    private_key: |
+      your-app-private-key-content-here
+  v3_api_url: 'https://api.github.com/'
+
+server:
+  address: '127.0.0.1'
+  port: 8080
