@@ -75,6 +75,14 @@ func (m *Manager) commandScanRepos() (e error) {
 		return
 	}
 
+	repo_url := m.config.Git.Scan.Repositories[0]
+	// clone the repository
+	repository, repository_err := m.git_manager.CloneRepo(repo_url)
+	if repository_err != nil {
+		e = errors.Wrap(repository_err, ErrMsgCloneRepository)
+		return
+	}
+
 	var ai *az.EntityDetectionAI
 	ai, e = az.NewEntityDetectionAI(m.config)
 	if e != nil {
@@ -82,12 +90,28 @@ func (m *Manager) commandScanRepos() (e error) {
 		return
 	}
 	az_ai_detector := az.NewAzAiLanguagePhiDetector(ai)
+
+	// create channels for scanner errors, requests, and responses
 	chan_scan_errors := make(chan error)
 	chan_requests := make(chan rrr.Request)
 	chan_responses := make(chan rrr.Response)
 
-	go m.scanner.Scan(chan_scan_errors, chan_requests, chan_responses)
-	go az_ai_detector.Run(m.ctx, chan_requests, chan_responses)
+	// Scan the respository in a goroutine that writes errors to chan_scan_errors,
+	// writes requests to chan_requests, and reads responses from chan_responses
+	go m.scanner.Scan(
+		repo_url,
+		repository,
+		chan_scan_errors,
+		chan_requests,
+		chan_responses,
+	)
+	// Run the AI detector in a goroutine that reads requests from chan_requests
+	// and writes responses to chan_responses
+	go az_ai_detector.Run(
+		m.ctx,
+		chan_requests,
+		chan_responses,
+	)
 
 	// wait for an error to be returned from the scanner
 	e = <-chan_scan_errors
@@ -114,13 +138,36 @@ func (m *Manager) commandScanTest() (e error) {
 		return
 	}
 
+	repo_url := m.config.Git.Scan.Repositories[0]
+	// clone the repository
+	repository, repository_err := m.git_manager.CloneRepo(repo_url)
+	if repository_err != nil {
+		e = errors.Wrap(repository_err, ErrMsgCloneRepository)
+		return
+	}
+
+	dry_run_detector := dryrun.NewDryRunPhiDetector()
+
 	chan_scan_errors := make(chan error)
 	chan_requests := make(chan rrr.Request)
 	chan_responses := make(chan rrr.Response)
-	dry_run_detector := dryrun.NewDryRunPhiDetector()
 
-	go m.scanner.Scan(chan_scan_errors, chan_requests, chan_responses)
-	go dry_run_detector.Run(m.ctx, chan_requests, chan_responses)
+	// Scan the respository in a goroutine that writes errors to chan_scan_errors,
+	// writes requests to chan_requests, and reads responses from chan_responses
+	go m.scanner.Scan(
+		repo_url,
+		repository,
+		chan_scan_errors,
+		chan_requests,
+		chan_responses,
+	)
+	// Run the AI detector in a goroutine that reads requests from chan_requests
+	// and writes responses to chan_responses
+	go dry_run_detector.Run(
+		m.ctx,
+		chan_requests,
+		chan_responses,
+	)
 
 	// wait for an error to be returned from the scanner
 	e = <-chan_scan_errors

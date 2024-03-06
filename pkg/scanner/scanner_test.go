@@ -110,42 +110,66 @@ func TestScanner_Scan(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		config_func  func() *cfg.GitConfig
-		ctx          context.Context
-		err_chan     chan error
-		err_expected error
-		name         string
-		req_chan     chan<- rrr.Request
-		resp_chan    <-chan rrr.Response
+		config_func       func() *cfg.GitConfig
+		ctx               context.Context
+		err_chan          chan error
+		err_expected      error
+		name              string
+		repo_err_expected error
+		repo_func         func(ctx context.Context, repo_url string, c *cfg.GitConfig) (*git.Repository, error)
+		repo_url          string
+		req_chan          chan<- rrr.Request
+		resp_chan         <-chan rrr.Response
 	}{
 		{
 			config_func: func() *cfg.GitConfig {
 				config := test_valid_config_func()
-				config.Git.Scan.Repositories = []string{"test_repo_url_fail"}
+				config.Git.Scan.Repositories = []string{test_repo_url}
 				return &config.Git
 			},
-			ctx:          test_context,
-			err_chan:     make(chan error),
-			err_expected: nil,
-			name:         "Scanner_Run_Pass_1",
-			req_chan:     make(chan<- rrr.Request),
-			resp_chan:    make(<-chan rrr.Response),
+			ctx:               test_context,
+			err_chan:          make(chan error),
+			err_expected:      nil,
+			name:              "Scanner_Run_Repository_Init",
+			repo_err_expected: nil,
+			repo_func: func(ctx context.Context, repo_url string, c *cfg.GitConfig) (*git.Repository, error) {
+				// initialize the bare *git.Repository
+				return git.Init(gitmemory.NewStorage(), nil)
+			},
+			repo_url:  test_repo_url,
+			req_chan:  make(chan<- rrr.Request),
+			resp_chan: make(<-chan rrr.Response),
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			config := test.config_func()
+			test_config := test.config_func()
 			scanner, scanner_err := NewScanner(
 				test.ctx,
-				config,
+				test_config,
 				memory.NewMemoryResultRecordIO(test_context),
 			)
 			if !assert.NoErrorf(t, scanner_err, test_failed_msg, test.name) {
 				assert.FailNowf(t, "failed to create scanner : %s", scanner_err.Error())
 			}
 
-			go scanner.Scan(test.err_chan, test.req_chan, test.resp_chan)
+			test_repository, test_repository_err := test.repo_func(test.ctx, test.repo_url, test_config)
+			if test.repo_err_expected != nil {
+				assert.ErrorContains(t, test_repository_err, test.repo_err_expected.Error())
+				return
+			} else {
+				assert.NoError(t, test_repository_err)
+			}
+
+			go scanner.Scan(
+				test.repo_url,
+				test_repository,
+				test.err_chan,
+				test.req_chan,
+				test.resp_chan,
+			)
+
 			if test.err_expected != nil {
 				err := <-test.err_chan
 				assert.ErrorContainsf(t, err, test.err_expected.Error(), test_failed_msg, test.name)

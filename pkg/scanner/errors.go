@@ -4,7 +4,6 @@ import "github.com/pkg/errors"
 
 const (
 	ErrMsgAddScanRepository     = "failed to add ScanRepository"
-	ErrMsgCloneRepository       = "failed to clone repository"
 	ErrMsgErrorChannelNil       = "received nil error channel as input"
 	ErrMsgResultWriteFailed     = "failed to write result"
 	ErrMsgScanRepositoryCreate  = "failed to create new ScanRepository object"

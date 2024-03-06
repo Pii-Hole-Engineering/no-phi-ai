@@ -72,7 +72,7 @@ func (gm *GitManager) CloneRepo(repo_url string) (*git.Repository, error) {
 
 	var key_err error
 	var auth_method transport.AuthMethod
-	auth_method, key_err = gm.getAuthMethod(repo_url)
+	auth_method, key_err = gm.getAuthMethod()
 	if key_err != nil {
 		return nil, key_err
 	}
@@ -82,13 +82,15 @@ func (gm *GitManager) CloneRepo(repo_url string) (*git.Repository, error) {
 		return nil, dir_err
 	}
 
-	gm.logger.Debug().Msgf("cloning git repo from %s to %s", repo_url, clone_dir)
-	repo, err := git.PlainCloneContext(gm.ctx, clone_dir, false, &git.CloneOptions{
+	clone_options := &git.CloneOptions{
 		//Progress: os.Stdout,
-		URL:  repo_url,
-		Auth: auth_method,
-	})
-
+		URL: repo_url,
+	}
+	if auth_method != nil {
+		clone_options.Auth = auth_method
+	}
+	gm.logger.Debug().Msgf("cloning git repo from %s to %s", repo_url, clone_dir)
+	repo, err := git.PlainCloneContext(gm.ctx, clone_dir, false, clone_options)
 	if err != nil {
 		if err == git.ErrRepositoryAlreadyExists {
 			gm.logger.Info().Msgf("git repo already cloned : opening from %s", clone_dir)
@@ -110,7 +112,7 @@ func (gm *GitManager) GetContext() context.Context {
 
 // getAuthMethod() method returns the appropriate transport.AuthMethod for the
 // given repo_url based on the configuration provided to the GitManager.
-func (gm *GitManager) getAuthMethod(repo_url string) (transport.AuthMethod, error) {
+func (gm *GitManager) getAuthMethod() (transport.AuthMethod, error) {
 	// use the provided config values to determine which auth method to use
 	//
 	// TODO : also use the repo_url to determine which auth method to use

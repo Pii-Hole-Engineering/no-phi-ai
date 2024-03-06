@@ -8,16 +8,18 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/Pii-Hole-Engineering/no-phi-ai/pkg/cfg"
+	nogit "github.com/Pii-Hole-Engineering/no-phi-ai/pkg/client/no-git"
 	"github.com/Pii-Hole-Engineering/no-phi-ai/pkg/scanner"
 )
 
 // Manager struct holds the configuration and state for app.
 type Manager struct {
-	config  *cfg.Config
-	ctx     context.Context
-	logger  *zerolog.Logger
-	scanner *scanner.Scanner
-	server  *http.Server
+	config      *cfg.Config
+	ctx         context.Context
+	git_manager *nogit.GitManager
+	logger      *zerolog.Logger
+	scanner     *scanner.Scanner
+	server      *http.Server
 }
 
 // New() function returns a new Manager instance for the app.
@@ -44,11 +46,14 @@ func New() *Manager {
 		}
 	}
 
+	ctx := context.Background()
+
 	// populate the Manager struct
 	return &Manager{
-		config: config,
-		ctx:    context.Background(),
-		logger: logger,
+		config:      config,
+		ctx:         ctx,
+		git_manager: nogit.NewGitManager(&config.Git, ctx),
+		logger:      logger,
 	}
 }
 
