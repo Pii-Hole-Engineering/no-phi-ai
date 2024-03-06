@@ -26,6 +26,11 @@ func ChunkFileToRequests(in ChunkFileInput) (requests []Request, e error) {
 		return
 	}
 
+	if in.File.Size == 0 {
+		// ignore empty files
+		return
+	}
+
 	requests = make([]Request, 0)
 	file_reader, err := in.File.Reader()
 	if err != nil {
@@ -44,17 +49,27 @@ func ChunkFileToRequests(in ChunkFileInput) (requests []Request, e error) {
 		next_length := len(line) + len(current_text) + len("\n")
 
 		if next_length < in.MaxChunkSize {
-			current_text += "\n" + line
+			if current_text == "" {
+				current_text = line
+			} else {
+				current_text += "\n" + line
+			}
+			continue
+		}
+
+		if len(current_text) == 0 {
 			continue
 		}
 
 		// create a request from the current_text
-		request, err := NewRequest(
-			in.RepoID,
-			in.CommitID,
-			in.File.ID().String(),
-			current_text, // create Request from current_text
-		)
+		request, err := NewRequest(NewRequestInput{
+			CommitID: in.CommitID,
+			Length:   len(current_text),
+			ObjectID: in.File.ID().String(),
+			Offset:   current_offset,
+			RepoID:   in.RepoID,
+			Text:     current_text,
+		})
 		if err != nil {
 			e = errors.Wrap(err, ErrMsgScanFileRequestsGenerate)
 			return
@@ -96,12 +111,14 @@ func ChunkFileToRequests(in ChunkFileInput) (requests []Request, e error) {
 	// ensure that the last chunk of the file is included in the requests
 	if current_text != "" {
 		// create a new request for the remaining text
-		request, err := NewRequest(
-			in.RepoID,
-			in.CommitID,
-			in.File.ID().String(),
-			current_text,
-		)
+		request, err := NewRequest(NewRequestInput{
+			CommitID: in.CommitID,
+			Length:   len(current_text),
+			ObjectID: in.File.ID().String(),
+			Offset:   current_offset,
+			RepoID:   in.RepoID,
+			Text:     current_text,
+		})
 		if err != nil {
 			e = err
 			return
@@ -166,12 +183,14 @@ func ChunkLineToRequests(in ChunkLineInput) (offset int, requests []Request, e e
 
 		// create a new request when current text is within a word of
 		// the MaxChunkSize
-		request, err := NewRequest(
-			in.RepoID,
-			in.CommitID,
-			in.ObjectID,
-			current_text,
-		)
+		request, err := NewRequest(NewRequestInput{
+			CommitID: in.CommitID,
+			Length:   len(current_text),
+			ObjectID: in.ObjectID,
+			Offset:   offset,
+			RepoID:   in.RepoID,
+			Text:     current_text,
+		})
 		if err != nil {
 			e = err
 			return
@@ -185,12 +204,14 @@ func ChunkLineToRequests(in ChunkLineInput) (offset int, requests []Request, e e
 
 	if current_text != "" {
 		// create a new request for the remaining text
-		request, err := NewRequest(
-			in.RepoID,
-			in.CommitID,
-			in.ObjectID,
-			current_text,
-		)
+		request, err := NewRequest(NewRequestInput{
+			CommitID: in.CommitID,
+			Length:   len(current_text),
+			ObjectID: in.ObjectID,
+			Offset:   offset,
+			RepoID:   in.RepoID,
+			Text:     current_text,
+		})
 		if err != nil {
 			e = err
 			return

@@ -18,6 +18,22 @@ import (
 func TestIgnoreFileObject(t *testing.T) {
 	t.Parallel()
 
+	fileObjectFuncFooBlob := func(repo, commit, path string) *object.File {
+		o := &plumbing.MemoryObject{}
+		o.SetType(plumbing.BlobObject)
+		o.SetSize(3)
+
+		writer, err := o.Writer()
+		assert.NoError(t, err)
+		defer func() { assert.NoError(t, writer.Close()) }()
+
+		writer.Write([]byte{'F', 'O', 'O'})
+
+		blob := &object.Blob{}
+		blob.Decode(o)
+		return object.NewFile(path, filemode.Regular, blob)
+	}
+
 	fileObjectFuncFixture := func(repo, commit, path string) *object.File {
 		f := fixtures.ByURL(repo).One()
 		sto := filesystem.NewStorage(f.DotGit(), cache.NewObjectLRUDefault())
@@ -35,22 +51,6 @@ func TestIgnoreFileObject(t *testing.T) {
 			return nil
 		}
 		return file
-	}
-
-	fileObjectFuncFooBlob := func(repo, commit, path string) *object.File {
-		o := &plumbing.MemoryObject{}
-		o.SetType(plumbing.BlobObject)
-		o.SetSize(3)
-
-		writer, err := o.Writer()
-		assert.NoError(t, err)
-		defer func() { assert.NoError(t, writer.Close()) }()
-
-		writer.Write([]byte{'F', 'O', 'O'})
-
-		blob := &object.Blob{}
-		blob.Decode(o)
-		return object.NewFile(path, filemode.Regular, blob)
 	}
 
 	tests := []struct {

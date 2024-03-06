@@ -17,7 +17,14 @@ func TestNewRequest(t *testing.T) {
 	expected_hash := "0be325f9ba1df76ddfcf60fe972f3b0f06781ac1"
 
 	t.Run("ValidInput", func(t *testing.T) {
-		request, err := NewRequest(repoID, commitID, objectID, text)
+		request, err := NewRequest(NewRequestInput{
+			CommitID: commitID,
+			Length:   len(text),
+			ObjectID: objectID,
+			Offset:   0,
+			RepoID:   repoID,
+			Text:     text,
+		})
 
 		assert.NoError(t, err)
 		assert.NotEmpty(t, request.ID)
@@ -31,7 +38,14 @@ func TestNewRequest(t *testing.T) {
 	})
 
 	t.Run("EmptyRepositoryID", func(t *testing.T) {
-		request, err := NewRequest("", commitID, objectID, text)
+		request, err := NewRequest(NewRequestInput{
+			CommitID: commitID,
+			Length:   len(text),
+			ObjectID: objectID,
+			Offset:   0,
+			RepoID:   "",
+			Text:     text,
+		})
 
 		assert.Error(t, err)
 		assert.Equal(t, ErrNewRequestEmptyRepositoryID, err)
@@ -39,7 +53,14 @@ func TestNewRequest(t *testing.T) {
 	})
 
 	t.Run("EmptyCommitID", func(t *testing.T) {
-		request, err := NewRequest(repoID, "", objectID, text)
+		request, err := NewRequest(NewRequestInput{
+			CommitID: "",
+			Length:   len(text),
+			ObjectID: objectID,
+			Offset:   0,
+			RepoID:   repoID,
+			Text:     text,
+		})
 
 		assert.Error(t, err)
 		assert.Equal(t, ErrNewRequestEmptyCommitID, err)
@@ -47,7 +68,14 @@ func TestNewRequest(t *testing.T) {
 	})
 
 	t.Run("EmptyObjectID", func(t *testing.T) {
-		request, err := NewRequest(repoID, commitID, "", text)
+		request, err := NewRequest(NewRequestInput{
+			CommitID: commitID,
+			Length:   len(text),
+			ObjectID: "",
+			Offset:   0,
+			RepoID:   repoID,
+			Text:     text,
+		})
 
 		assert.Error(t, err)
 		assert.Equal(t, ErrNewRequestEmptyObjectID, err)
@@ -55,7 +83,14 @@ func TestNewRequest(t *testing.T) {
 	})
 
 	t.Run("EmptyText", func(t *testing.T) {
-		request, err := NewRequest(repoID, commitID, objectID, "")
+		request, err := NewRequest(NewRequestInput{
+			CommitID: commitID,
+			Length:   0,
+			ObjectID: objectID,
+			Offset:   0,
+			RepoID:   repoID,
+			Text:     "",
+		})
 
 		assert.Error(t, err)
 		assert.Equal(t, ErrNewRequestEmptyText, err)

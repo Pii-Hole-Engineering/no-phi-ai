@@ -2,7 +2,14 @@ package rrr
 
 import (
 	"testing"
+	"time"
 
+	fixtures "github.com/go-git/go-git-fixtures/v4"
+	"github.com/go-git/go-git/v5/plumbing"
+	"github.com/go-git/go-git/v5/plumbing/cache"
+	"github.com/go-git/go-git/v5/plumbing/filemode"
+	"github.com/go-git/go-git/v5/plumbing/object"
+	"github.com/go-git/go-git/v5/storage/filesystem"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -16,50 +23,360 @@ var (
 func TestChunkFileToRequests(t *testing.T) {
 	t.Parallel()
 
+	fileObjectFuncGenerateFromPath := func(repo, commit, path string) *object.File {
+		o := &plumbing.MemoryObject{}
+		o.SetType(plumbing.BlobObject)
+		o.SetSize(3)
+
+		writer, err := o.Writer()
+		assert.NoError(t, err)
+		defer func() { assert.NoError(t, writer.Close()) }()
+
+		writer.Write([]byte(path))
+
+		blob := &object.Blob{}
+		blob.Decode(o)
+		return object.NewFile(path, filemode.Regular, blob)
+	}
+
+	fileObjectFuncFixture := func(repo, commit, path string) *object.File {
+		f := fixtures.ByURL(repo).One()
+		sto := filesystem.NewStorage(f.DotGit(), cache.NewObjectLRUDefault())
+
+		h := plumbing.NewHash(commit)
+		commit_object, err := object.GetCommit(sto, h)
+		if !assert.NoError(t, err) {
+			t.Logf("get commit error=%s : test.repo=%s : test=commit=%s : test.path=%s", err.Error(), repo, commit, path)
+			return nil
+		}
+
+		file, err := commit_object.File(path)
+		if !assert.NoError(t, err) {
+			t.Logf("get commit file error=%s : test.repo=%s : test=commit=%s : test.path=%s", err.Error(), repo, commit, path)
+			return nil
+		}
+		return file
+	}
+
+	now := TimestampNow()
+	// sleep for a short duration to ensure the Start timestamp of each
+	// Request is greater than the current (now) timestamp
+	time.Sleep(2 * time.Millisecond)
+
+	var (
+		test_chunk_line_prefix = "test-chunk-line-prefix"
+		test_chunk_line_suffix = "test-chunk-line-suffix"
+	)
+
 	tests := []struct {
-		expected_requests []Request
+		commit_id         string
 		expected_error    error
-		in                ChunkFileInput
+		expected_requests []Request
+		fileObjectFunc    func(repo, commit, path string) *object.File
+		file_path         string
+		max_chunk_size    int
 		name              string
+		repo_id           string
 	}{
 		{
+			commit_id:         "",
+			expected_error:    ErrChunkFileToRequestsInFileNil,
+			expected_requests: []Request{},
+			fileObjectFunc: func(repo, commit, path string) *object.File {
+				return nil
+			},
+			file_path:      "",
+			max_chunk_size: 100,
+			name:           "FileNil",
+			repo_id:        "",
+		},
+		{
+			commit_id:      "a2c08a18a1426688b8e80a5c11fad48815817926",
+			expected_error: ErrChunkFileToRequestsFailed, // TODO : should not error
 			expected_requests: []Request{
 				{
 					MetadataRequestResponse: MetadataRequestResponse{
+						ID: "ABC",
 						Commit: MetadataRequestResponseCommit{
-							ID: "test_commit",
+							ID: "a2c08a18a1426688b8e80a5c11fad48815817926",
 						},
 						Object: MetadataRequestResponseObject{
-							ID: "test_object",
+							ID:     "123",
+							Length: len(test_chunk_line_prefix),
+							Offset: 0,
 						},
 						Repository: MetadataRequestResponseRepository{
-							ID: "test_repo",
+							ID:  "test_repo",
+							URL: "",
+						},
+						Time: MetadataRequestResponseTime{
+							Start: now,
+							Stop:  0,
 						},
 					},
-					Text: "Lorem ipsum dolor sit amet",
+				},
+				{
+					MetadataRequestResponse: MetadataRequestResponse{
+						ID: "XYZ",
+						Commit: MetadataRequestResponseCommit{
+							ID: "a2c08a18a1426688b8e80a5c11fad48815817926",
+						},
+						Object: MetadataRequestResponseObject{
+							ID:     "789",
+							Length: len(test_chunk_line_suffix),
+							Offset: len(test_chunk_line_prefix),
+						},
+						Repository: MetadataRequestResponseRepository{
+							ID:  "test_repo",
+							URL: "",
+						},
+						Time: MetadataRequestResponseTime{
+							Start: now,
+							Stop:  0,
+						},
+					},
 				},
 			},
-			expected_error: ErrChunkFileToRequestsInFileNil,
-			in: ChunkFileInput{
-				RepoID:       "test_repo",
-				CommitID:     "test_commit",
-				File:         nil, // TODO
-				MaxChunkSize: 100,
+			fileObjectFunc: fileObjectFuncGenerateFromPath,
+			file_path:      test_chunk_line_prefix + " " + test_chunk_line_suffix,
+			max_chunk_size: 30,
+			name:           "FileLongLine",
+			repo_id:        "test_repo",
+		},
+		{
+			commit_id:      "a2c08a18a1426688b8e80a5c11fad48815817926",
+			expected_error: nil,
+			expected_requests: []Request{
+				{
+					MetadataRequestResponse: MetadataRequestResponse{
+						ID: "565bed8c2096d8164491cc152c5582e379c78dba",
+						Commit: MetadataRequestResponseCommit{
+							ID: "a2c08a18a1426688b8e80a5c11fad48815817926",
+						},
+						Object: MetadataRequestResponseObject{
+							ID:     "1c4c355fd61803a595bbbdef7914bd0ef45bf138",
+							Length: len("test.foo.blob"),
+							Offset: 0,
+						},
+						Repository: MetadataRequestResponseRepository{
+							ID:  "test_repo",
+							URL: "",
+						},
+						Time: MetadataRequestResponseTime{
+							Start: now,
+							Stop:  0,
+						},
+					},
+				},
 			},
-			name: "Pass_1",
+			fileObjectFunc: fileObjectFuncGenerateFromPath,
+			file_path:      "test.foo.blob",
+			max_chunk_size: 1000,
+			name:           "FileFooBlob",
+			repo_id:        "test_repo",
+		},
+		{
+			commit_id:      "6ecf0ef2c2dffb796033e5a02219af86ec6584e5",
+			expected_error: nil,
+			expected_requests: []Request{
+				{
+					MetadataRequestResponse: MetadataRequestResponse{
+						ID: "fd885aaac15f8722a72c9a212ee00bfd00d8b7aa",
+						Commit: MetadataRequestResponseCommit{
+							ID: "6ecf0ef2c2dffb796033e5a02219af86ec6584e5",
+						},
+						Object: MetadataRequestResponseObject{
+							ID:     "c8f1d8c61f9da76f4cb49fd86322b6e685dba956",
+							Length: 705,
+							Offset: 0,
+						},
+						Repository: MetadataRequestResponseRepository{
+							ID:  "https://github.com/git-fixtures/basic.git",
+							URL: "",
+						},
+						Time: MetadataRequestResponseTime{
+							Start: now,
+							Stop:  0,
+						},
+					},
+				},
+			},
+			fileObjectFunc: fileObjectFuncFixture,
+			file_path:      "json/short.json",
+			max_chunk_size: 5000,
+			name:           "ShortJSON_ChunkSize5000",
+			repo_id:        "https://github.com/git-fixtures/basic.git",
+		},
+		{
+			commit_id:      "6ecf0ef2c2dffb796033e5a02219af86ec6584e5",
+			expected_error: nil,
+			expected_requests: []Request{
+				{
+					MetadataRequestResponse: MetadataRequestResponse{
+						ID: "f80aace9a97da9efe23e07ad7ebd81a451f8142b",
+						Commit: MetadataRequestResponseCommit{
+							ID: "6ecf0ef2c2dffb796033e5a02219af86ec6584e5",
+						},
+						Object: MetadataRequestResponseObject{
+							ID:     "c8f1d8c61f9da76f4cb49fd86322b6e685dba956",
+							Length: 428,
+							Offset: 0,
+						},
+						Repository: MetadataRequestResponseRepository{
+							ID:  "https://github.com/git-fixtures/basic.git",
+							URL: "",
+						},
+						Time: MetadataRequestResponseTime{
+							Start: now,
+							Stop:  0,
+						},
+					},
+				},
+				{
+					MetadataRequestResponse: MetadataRequestResponse{
+						ID: "59ebc69527749d2c4c5f24c8cd6abeab87dddab8",
+						Commit: MetadataRequestResponseCommit{
+							ID: "6ecf0ef2c2dffb796033e5a02219af86ec6584e5",
+						},
+						Object: MetadataRequestResponseObject{
+							ID:     "c8f1d8c61f9da76f4cb49fd86322b6e685dba956",
+							Length: 276,
+							Offset: 428,
+						},
+						Repository: MetadataRequestResponseRepository{
+							ID:  "https://github.com/git-fixtures/basic.git",
+							URL: "",
+						},
+						Time: MetadataRequestResponseTime{
+							Start: now,
+							Stop:  0,
+						},
+					},
+				},
+			},
+			fileObjectFunc: fileObjectFuncFixture,
+			file_path:      "json/short.json",
+			max_chunk_size: 500,
+			name:           "ShortJSON_ChunkSize500",
+			repo_id:        "https://github.com/git-fixtures/basic.git",
+		},
+		{
+			commit_id:      "6ecf0ef2c2dffb796033e5a02219af86ec6584e5",
+			expected_error: nil,
+			expected_requests: []Request{
+				{
+					MetadataRequestResponse: MetadataRequestResponse{
+						ID: "5e832830493293c58cf6fa033f63b7e5c5c2eb5f",
+						Commit: MetadataRequestResponseCommit{
+							ID: "6ecf0ef2c2dffb796033e5a02219af86ec6584e5",
+						},
+						Object: MetadataRequestResponseObject{
+							ID:     "49c6bb89b17060d7b4deacb7b338fcc6ea2352a9",
+							Length: 99997,
+							Offset: 0,
+						},
+						Repository: MetadataRequestResponseRepository{
+							ID:  "https://github.com/git-fixtures/basic.git",
+							URL: "",
+						},
+						Time: MetadataRequestResponseTime{
+							Start: now,
+							Stop:  0,
+						},
+					},
+				},
+				{
+					MetadataRequestResponse: MetadataRequestResponse{
+						ID: "13814146eec7a311f230ab93beb4868284895ad2",
+						Commit: MetadataRequestResponseCommit{
+							ID: "6ecf0ef2c2dffb796033e5a02219af86ec6584e5",
+						},
+						Object: MetadataRequestResponseObject{
+							ID:     "49c6bb89b17060d7b4deacb7b338fcc6ea2352a9",
+							Length: 99947,
+							Offset: 99997,
+						},
+						Repository: MetadataRequestResponseRepository{
+							ID:  "https://github.com/git-fixtures/basic.git",
+							URL: "",
+						},
+						Time: MetadataRequestResponseTime{
+							Start: now,
+							Stop:  0,
+						},
+					},
+				},
+				{
+					MetadataRequestResponse: MetadataRequestResponse{
+						ID: "590fcc78b86e001a4d2df3ba62b351211ed92523",
+						Commit: MetadataRequestResponseCommit{
+							ID: "6ecf0ef2c2dffb796033e5a02219af86ec6584e5",
+						},
+						Object: MetadataRequestResponseObject{
+							ID:     "49c6bb89b17060d7b4deacb7b338fcc6ea2352a9",
+							Length: 17901,
+							Offset: 199944,
+						},
+						Repository: MetadataRequestResponseRepository{
+							ID:  "https://github.com/git-fixtures/basic.git",
+							URL: "",
+						},
+						Time: MetadataRequestResponseTime{
+							Start: now,
+							Stop:  0,
+						},
+					},
+				},
+			},
+			fileObjectFunc: fileObjectFuncFixture,
+			file_path:      "json/long.json",
+			max_chunk_size: 100000,
+			name:           "LongJSON_ChunkSize100000",
+			repo_id:        "https://github.com/git-fixtures/basic.git",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			requests, err := ChunkFileToRequests(tt.in)
+			file := tt.fileObjectFunc(tt.repo_id, tt.commit_id, tt.file_path)
+
+			input := ChunkFileInput{
+				CommitID:     tt.commit_id,
+				File:         file,
+				MaxChunkSize: tt.max_chunk_size,
+				RepoID:       tt.repo_id,
+			}
+
+			// run the function under test
+			requests, err := ChunkFileToRequests(input)
 			if tt.expected_error != nil {
 				assert.ErrorIs(t, err, tt.expected_error)
 				return
 			}
 			assert.NoError(t, err)
 
-			assert.Equal(t, tt.expected_requests, requests)
+			// assert the expected requests
+			if !assert.Equalf(
+				t,
+				len(tt.expected_requests),
+				len(requests),
+				"number of requests expected: %d, got: %d",
+				len(tt.expected_requests),
+				len(requests),
+			) {
+				t.FailNow()
+			}
+			for i, expected := range tt.expected_requests {
+				assert.Equal(t, expected.ID, requests[i].ID, "expected request ID does not match test result")
+				assert.Equal(t, expected.Commit.ID, requests[i].Commit.ID, "expected Commit ID does not match test result")
+				assert.Equal(t, expected.Object.ID, requests[i].Object.ID, "expected Object ID does not match test result")
+				assert.Equal(t, expected.Object.Length, requests[i].Object.Length, "expected Length does not match test result")
+				assert.Equal(t, expected.Object.Offset, requests[i].Object.Offset, "expected Offset does not match test result")
+				assert.Equal(t, expected.Repository.ID, requests[i].Repository.ID, "expected Repository ID does not match test result")
+				assert.Equal(t, expected.Repository.URL, requests[i].Repository.URL, "expected Repository URL does not match test result")
+				assert.Equal(t, expected.Time.Stop, requests[i].Time.Stop, "expected Time.Stop does not match test result")
+				assert.Greater(t, requests[i].Time.Start, expected.Time.Start, "expected Time.Start does not match test result")
+			}
 		})
 	}
 }

@@ -306,7 +306,14 @@ func TestScanner_processResponse(t *testing.T) {
 			expectedErr: nil,
 			name:        "Scanner_processResponse_Pass_1",
 			responseFunc: func() rrr.Response {
-				request, request_err := rrr.NewRequest(test_repo_url, "commit_id", "object_id", "test_text_example")
+				request, request_err := rrr.NewRequest(rrr.NewRequestInput{
+					CommitID: "commit_id",
+					Length:   len("test_text_example"),
+					ObjectID: "object_id",
+					Offset:   0,
+					RepoID:   test_repo_url,
+					Text:     "test_text_example",
+				})
 				if !assert.NoError(t, request_err) {
 					assert.FailNow(t, "failed to create test request and response")
 				}
@@ -318,7 +325,14 @@ func TestScanner_processResponse(t *testing.T) {
 			expectedErr: ErrProcessResponseNoID,
 			name:        "Scanner_processResponse_Fail_1",
 			responseFunc: func() rrr.Response {
-				request, request_err := rrr.NewRequest(test_repo_url, "commit_id", "object_id", "test_text_example")
+				request, request_err := rrr.NewRequest(rrr.NewRequestInput{
+					CommitID: "commit_id",
+					Length:   len("test_text_example"),
+					ObjectID: "object_id",
+					Offset:   0,
+					RepoID:   test_repo_url,
+					Text:     "test_text_example",
+				})
 				if !assert.NoError(t, request_err) {
 					assert.FailNow(t, "failed to create test request and response")
 				}

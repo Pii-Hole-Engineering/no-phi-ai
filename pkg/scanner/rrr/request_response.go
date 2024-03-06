@@ -66,44 +66,57 @@ type Request struct {
 	Text string `json:"text"`
 }
 
+// NewRequestInput struct contains the input parameters required for the
+// NewRequest() function.
+type NewRequestInput struct {
+	CommitID string
+	Length   int
+	ObjectID string
+	Offset   int
+	RepoID   string
+	Text     string
+}
+
 // NewRequest() function initializes a new Request object.
-func NewRequest(repo_id, commit_id, object_id, text string) (Request, error) {
-	if repo_id == "" {
+func NewRequest(in NewRequestInput) (Request, error) {
+	if in.RepoID == "" {
 		return Request{}, ErrNewRequestEmptyRepositoryID
 	}
-	if object_id == "" {
+	if in.ObjectID == "" {
 		return Request{}, ErrNewRequestEmptyObjectID
 	}
-	if commit_id == "" {
+	if in.CommitID == "" {
 		return Request{}, ErrNewRequestEmptyCommitID
 	}
-	if text == "" {
+	if in.Text == "" {
 		return Request{}, ErrNewRequestEmptyText
 	}
 
 	// create a unique ID by taking the SHA1 hash of the input strings
 	// separated by the ResultSeparatorUID
-	elements := []string{repo_id, commit_id, object_id, text}
+	elements := []string{in.RepoID, in.CommitID, in.ObjectID, in.Text}
 	sum := sha1.Sum([]byte(strings.Join(elements, ResultSeparatorUID)))
 
 	return Request{
 		MetadataRequestResponse: MetadataRequestResponse{
 			ID: hex.EncodeToString(sum[:]),
 			Commit: MetadataRequestResponseCommit{
-				ID: commit_id,
+				ID: in.CommitID,
 			},
 			Object: MetadataRequestResponseObject{
-				ID: object_id,
+				ID:     in.ObjectID,
+				Length: in.Length,
+				Offset: in.Offset,
 			},
 			Repository: MetadataRequestResponseRepository{
-				ID: repo_id,
+				ID: in.RepoID,
 			},
 			Time: MetadataRequestResponseTime{
 				Start: TimestampNow(),
 				Stop:  0,
 			},
 		},
-		Text: text,
+		Text: in.Text,
 	}, nil
 }
 
