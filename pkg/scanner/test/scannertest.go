@@ -38,7 +38,7 @@ func ScannerTestEndToEnd(ctx context.Context, repo_url string) (e error) {
 	config.Git.Scan.Repositories = []string{repo_url}
 	config.Git.WorkDir = ScannerTestDataDir
 
-	scanner, err := scanner.NewScanner(
+	s, err := scanner.NewScanner(
 		ctx,
 		&config.Git,
 		memory.NewMemoryResultRecordIO(ctx),
@@ -64,7 +64,13 @@ func ScannerTestEndToEnd(ctx context.Context, repo_url string) (e error) {
 	chan_requests := make(chan rrr.Request)
 	chan_responses := make(chan rrr.Response)
 
-	go scanner.Scan(repo_url, repository, chan_scan_errors, chan_requests, chan_responses)
+	go s.Scan(scanner.ScanInput{
+		ChanErrorsSend:      chan_scan_errors,
+		ChanRequestSend:     chan_requests,
+		ChanResponseReceive: chan_responses,
+		RepoID:              repo_url,
+		Repository:          repository,
+	})
 	go dry_run_detector.Run(ctx, chan_requests, chan_responses)
 
 	// wait for an error to be returned from the scanner

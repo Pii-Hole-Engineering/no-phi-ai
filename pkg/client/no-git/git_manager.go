@@ -3,6 +3,7 @@ package nogit
 import (
 	"context"
 	"os"
+	"strings"
 
 	git "github.com/go-git/go-git/v5"
 	"github.com/go-git/go-git/v5/plumbing/transport"
@@ -142,11 +143,28 @@ func (gm *GitManager) getAuthMethodPublicKey() (*ssh.PublicKeys, error) {
 
 // getRepoCloneDir() method is used to get the directory where a git repository
 // will be cloned by this GitManager instance.
-func (gm *GitManager) getRepoCloneDir(repoURL string) (string, error) {
-	repoName, err := ParseRepoNameFromURL(repoURL)
+func (gm *GitManager) getRepoCloneDir(repo_url string) (string, error) {
+	var (
+		err       error
+		org_name  string
+		repo_name string
+	)
+	org_name, err = ParseOrgNameFromURL(repo_url)
+	if err != nil {
+		return "", err
+
+	}
+	repo_name, err = ParseRepoNameFromURL(repo_url)
 	if err != nil {
 		return "", err
 	}
-	cloneDir := gm.config.WorkDir + "/" + repoName
-	return cloneDir, nil
+	join_list := []string{
+		gm.config.WorkDir,
+		cfg.WorkDirRepositories,
+		org_name,
+		repo_name,
+	}
+	// use the join_list to create a predictable path for the cloned repo
+	clone_dir := strings.Join(join_list, "/")
+	return clone_dir, nil
 }

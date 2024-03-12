@@ -32,6 +32,10 @@ const DefaultServerPort int = 8080
 const RouteGroupGHv1 string = "/api/v1/github"
 const RouteWebhook string = "/hook"
 
+const WorkDirCheckpoints string = "checkpoints"
+const WorkDirRepositories string = "repositories"
+const WorkDirResults string = "results"
+
 var DefaultScanFileExtensions = []string{
 	".csv",
 	".html",

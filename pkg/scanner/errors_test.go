@@ -13,6 +13,18 @@ func TestErrors(t *testing.T) {
 		name string
 	}{
 		{
+			err:  ErrCheckpointDeleteFailed,
+			name: "ErrCheckpointDeleteFailed",
+		},
+		{
+			err:  ErrCheckpointFileOpenFailed,
+			name: "ErrCheckpointFileOpenFailed",
+		},
+		{
+			err:  ErrCheckpointPathLookupFailed,
+			name: "ErrCheckpointPathLookupFailed",
+		},
+		{
 			err:  ErrProcessRequestNoID,
 			name: "ErrProcessRequestNoID",
 		},

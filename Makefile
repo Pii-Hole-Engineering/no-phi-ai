@@ -4,9 +4,11 @@ _app_name=no-phi-ai
 _app_pkg_dir=pkg
 _build_dir=build
 _coverage_out_file=coverage.out
+_coverage_html_file=coverage.html
 
 _cmd_docker_build=DOCKER_BUILDKIT=1 docker build --ssh default
 _cmd_go_cover=go tool cover -func=${_coverage_out_file}
+_cmd_go_cover_html=go tool cover -html=${_coverage_out_file} -o ${_coverage_html_file}
 
 _msg="${_app_name} : make"
 _msg_error="ERROR : ${_msg}"
@@ -37,6 +39,9 @@ cover: build_only test cover_only
 
 cover_only:
 	${_cmd_go_cover}
+
+cover_html: build_only test
+	${_cmd_go_cover_html}
 
 format:
 	./scripts/make.format.sh

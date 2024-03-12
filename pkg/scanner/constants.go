@@ -2,6 +2,9 @@ package scanner
 
 import "time"
 
+const CheckpointFileExtension string = ".checkpoint"
+const CheckpointRefreshInterval time.Duration = ScanRefreshInterval * 2
+
 const IgnoreReasonDefault string = "ignored_by_default"
 const IgnoreReasonDirPath string = "directory_path"
 const IgnoreReasonFileExtensionIgnoredByConfig string = "file_extension_ignored_by_config"

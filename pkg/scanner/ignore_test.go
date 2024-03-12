@@ -249,7 +249,6 @@ func TestIgnoreFileObject(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			t.Logf("running TestIgnoreFileObject/%s", test.name)
 			test_file_object := test.fileObjectFunc(test.repo, test.commit, test.path)
 
 			// run the function under test
