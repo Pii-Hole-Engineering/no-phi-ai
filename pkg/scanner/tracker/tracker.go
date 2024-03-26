@@ -115,12 +115,16 @@ func NewKeyDataCounts() KeyDataCounts {
 	}
 }
 
+// KeyDataMap type is used to represent a map of key strings to KeyData structs.
+type KeyDataMap map[string]KeyData
+
 // KeyTracker struct is used to track the state of objects as they are
 // scanned in order to prevent duplicate work and to provide a mechanism
 // for tracking the progress of the scan.
 type KeyTracker struct {
-	keys   map[string]KeyData
-	kind   string
+	Keys KeyDataMap `json:"keys"`
+	Kind string     `json:"kind"`
+
 	logger *zerolog.Logger
 	mu     *sync.RWMutex
 }
@@ -141,8 +145,8 @@ func NewKeyTracker(kind string, logger *zerolog.Logger) (*KeyTracker, error) {
 	}
 
 	return &KeyTracker{
-		keys:   make(map[string]KeyData, 0),
-		kind:   kind,
+		Keys:   make(KeyDataMap),
+		Kind:   kind,
 		logger: logger,
 		mu:     &sync.RWMutex{},
 	}, nil
@@ -155,7 +159,7 @@ func (kt *KeyTracker) CheckAllComplete() bool {
 	kt.mu.RLock()
 	defer kt.mu.RUnlock()
 
-	for _, key_data := range kt.keys {
+	for _, key_data := range kt.Keys {
 		if key_data.Code == KeyCodeInit || key_data.Code == KeyCodePending {
 			return false
 		}
@@ -177,7 +181,7 @@ func (kt *KeyTracker) Get(key string) (key_data KeyData, exists bool) {
 	// unlock the tracker after the function returns
 	defer kt.mu.RUnlock()
 
-	key_data, exists = kt.keys[key]
+	key_data, exists = kt.Keys[key]
 	return
 }
 
@@ -188,7 +192,7 @@ func (kt *KeyTracker) GetCounts() KeyDataCounts {
 	defer kt.mu.RUnlock()
 
 	counts := NewKeyDataCounts()
-	for _, key_data := range kt.keys {
+	for _, key_data := range kt.Keys {
 		switch key_data.Code {
 		case KeyCodeComplete:
 			counts.Complete++
@@ -214,7 +218,7 @@ func (st *KeyTracker) GetKeys() (keys []string) {
 	// unlock the tracker after the function returns
 	defer st.mu.RUnlock()
 
-	for key := range st.keys {
+	for key := range st.Keys {
 		keys = append(keys, key)
 	}
 
@@ -222,15 +226,15 @@ func (st *KeyTracker) GetKeys() (keys []string) {
 }
 
 // GetKeysData() method gets the map of keys and their associated KeyData.
-func (st *KeyTracker) GetKeysData() map[string]KeyData {
+func (st *KeyTracker) GetKeysData() KeyDataMap {
 	// lock the tracker for reading
 	st.mu.RLock()
 	// unlock the tracker after the function returns
 	defer st.mu.RUnlock()
 
 	// make a copy of the map to return
-	out := make(map[string]KeyData, 0)
-	for key, key_data := range st.keys {
+	out := make(KeyDataMap)
+	for key, key_data := range st.Keys {
 		out[key] = key_data
 	}
 
@@ -240,12 +244,12 @@ func (st *KeyTracker) GetKeysData() map[string]KeyData {
 // GetKeysDataForCode() method returns a filtered copy of the KeyTracker
 // keys map, where the only keys in the returned map are those with a
 // Code of KeyCodePending.
-func (st *KeyTracker) GetKeysDataForCode(code int) (map[string]KeyData, error) {
+func (st *KeyTracker) GetKeysDataForCode(code int) (KeyDataMap, error) {
 	if err := KeyCodeValidate(code); err != nil {
 		return nil, errors.Wrapf(err, "failed to get keys data for code %d", code)
 	}
 
-	out := make(map[string]KeyData, 0)
+	out := make(KeyDataMap)
 	for key, key_data := range st.GetKeysData() {
 		if key_data.Code == code {
 			out[key] = key_data
@@ -259,9 +263,9 @@ func (st *KeyTracker) PrintCodes() []int {
 	codes := make([]int, 0)
 	for key, key_data := range st.GetKeysData() {
 		codes = append(codes, key_data.Code)
-		st.logger.Debug().Msgf(
+		st.logger.Info().Msgf(
 			"PrintCodes :: KIND=%s : KEY=%s : CODE=%d : STATE=%s",
-			st.kind,
+			st.Kind,
 			key,
 			key_data.Code,
 			key_data.State,
@@ -272,9 +276,9 @@ func (st *KeyTracker) PrintCodes() []int {
 
 func (kt *KeyTracker) PrintCounts() KeyDataCounts {
 	counts := kt.GetCounts()
-	kt.logger.Debug().Msgf(
+	kt.logger.Info().Msgf(
 		"PrintCounts :: KIND=%s : INIT=%d : ERROR=%d : IGNORE=%d : PENDING=%d : COMPLETE=%d",
-		kt.kind,
+		kt.Kind,
 		counts.Init,
 		counts.Error,
 		counts.Ignore,
@@ -282,6 +286,22 @@ func (kt *KeyTracker) PrintCounts() KeyDataCounts {
 		counts.Complete,
 	)
 	return counts
+}
+
+// Restore() method restores the state of the KeyTracker from the provided
+// KeyDataMap, which should be the result of a previous call to the
+// GetKeysData() method.
+func (kt *KeyTracker) Restore(kdm KeyDataMap) {
+	kt.mu.Lock()
+	defer kt.mu.Unlock()
+	// remove all existing keys from the tracker
+	for key := range kt.Keys {
+		delete(kt.Keys, key)
+	}
+	// add the newkey data to the tracker
+	for key, key_data := range kdm {
+		kt.Keys[key] = key_data
+	}
 }
 
 // Update() method updates the KeyData for the given key with the provided
@@ -300,18 +320,15 @@ func (kt *KeyTracker) Update(key string, code_in int, message string, child_keys
 	kt.mu.Lock()
 	// release the lock after the function returns
 	defer kt.mu.Unlock()
-	key_data, exists := kt.keys[key]
-	// check if the key already exists in the kt.keys map
+	key_data, exists := kt.Keys[key]
+	// check if the key already exists in the kt.Keys map
 	if !exists {
-		// add the key if it does not exist
-		k_data, k_err := NewKeyData(code_in, message, child_keys)
-		if k_err != nil {
-			e = errors.Wrapf(k_err, "failed to update data for key=%s", key)
-			return
-		}
-		kt.keys[key] = k_data
+		// add the key if it does not exist; ignore error as KeyCodeValidate has
+		// already checked for any errors that NewKeyData() might return
+		k_data, _ := NewKeyData(code_in, message, child_keys)
+		kt.Keys[key] = k_data
 		code_out = k_data.Code
-		kt.logger.Trace().Msgf("KIND=%s : created new key=%s with code=%d", kt.kind, key, k_data.Code)
+		kt.logger.Trace().Msgf("KIND=%s : created new key=%s with code=%d", kt.Kind, key, k_data.Code)
 		return
 	}
 	// refuse to go back to a lower state
@@ -352,7 +369,7 @@ func (kt *KeyTracker) Update(key string, code_in int, message string, child_keys
 			key_data.State = KeyCodeToState(code_in)
 		}
 		// update the existing key data for the completed key state
-		kt.keys[key] = key_data
+		kt.Keys[key] = key_data
 		code_out = key_data.Code
 		return
 	}
@@ -363,7 +380,7 @@ func (kt *KeyTracker) Update(key string, code_in int, message string, child_keys
 	}
 
 	// update the existing key data
-	kt.keys[key] = key_data
+	kt.Keys[key] = key_data
 	code_out = key_data.Code
 
 	return

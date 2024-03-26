@@ -98,13 +98,13 @@ func (m *Manager) commandScanRepos() (e error) {
 
 	// Scan the respository in a goroutine that writes errors to chan_scan_errors,
 	// writes requests to chan_requests, and reads responses from chan_responses
-	go m.scanner.Scan(
-		repo_url,
-		repository,
-		chan_scan_errors,
-		chan_requests,
-		chan_responses,
-	)
+	go m.scanner.Scan(scanner.ScanInput{
+		ChanErrorsSend:      chan_scan_errors,
+		ChanRequestSend:     chan_requests,
+		ChanResponseReceive: chan_responses,
+		RepoID:              repo_url,
+		Repository:          repository,
+	})
 	// Run the AI detector in a goroutine that reads requests from chan_requests
 	// and writes responses to chan_responses
 	go az_ai_detector.Run(
@@ -154,13 +154,13 @@ func (m *Manager) commandScanTest() (e error) {
 
 	// Scan the respository in a goroutine that writes errors to chan_scan_errors,
 	// writes requests to chan_requests, and reads responses from chan_responses
-	go m.scanner.Scan(
-		repo_url,
-		repository,
-		chan_scan_errors,
-		chan_requests,
-		chan_responses,
-	)
+	go m.scanner.Scan(scanner.ScanInput{
+		ChanErrorsSend:      chan_scan_errors,
+		ChanRequestSend:     chan_requests,
+		ChanResponseReceive: chan_responses,
+		RepoID:              repo_url,
+		Repository:          repository,
+	})
 	// Run the AI detector in a goroutine that reads requests from chan_requests
 	// and writes responses to chan_responses
 	go dry_run_detector.Run(

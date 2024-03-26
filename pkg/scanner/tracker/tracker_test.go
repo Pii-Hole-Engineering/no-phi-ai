@@ -5,6 +5,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 
@@ -272,8 +273,8 @@ func TestNewKeyTracker(t *testing.T) {
 		{
 			kind: ScanObjectTypeCommit,
 			expected: &KeyTracker{
-				keys:   make(map[string]KeyData, 0),
-				kind:   ScanObjectTypeCommit,
+				Keys:   make(KeyDataMap),
+				Kind:   ScanObjectTypeCommit,
 				logger: &logger,
 				mu:     &sync.RWMutex{},
 			},
@@ -283,8 +284,8 @@ func TestNewKeyTracker(t *testing.T) {
 		{
 			kind: ScanObjectTypeFile,
 			expected: &KeyTracker{
-				keys:   make(map[string]KeyData, 0),
-				kind:   ScanObjectTypeFile,
+				Keys:   make(KeyDataMap),
+				Kind:   ScanObjectTypeFile,
 				logger: &logger,
 				mu:     &sync.RWMutex{},
 			},
@@ -294,8 +295,8 @@ func TestNewKeyTracker(t *testing.T) {
 		{
 			kind: ScanObjectTypeRequestResponse,
 			expected: &KeyTracker{
-				keys:   make(map[string]KeyData, 0),
-				kind:   ScanObjectTypeRequestResponse,
+				Keys:   make(KeyDataMap),
+				Kind:   ScanObjectTypeRequestResponse,
 				logger: &logger,
 				mu:     &sync.RWMutex{},
 			},
@@ -318,8 +319,8 @@ func TestNewKeyTracker(t *testing.T) {
 				return
 			}
 			assert.NoError(t, err)
-			assert.Equal(t, test.expected.keys, tracker.keys)
-			assert.Equal(t, test.expected.kind, tracker.kind)
+			assert.Equal(t, test.expected.Keys, tracker.Keys)
+			assert.Equal(t, test.expected.Kind, tracker.Kind)
 			assert.Equal(t, test.expected.logger, tracker.logger)
 			assert.Equal(t, test.expected.mu, tracker.mu)
 		})
@@ -549,8 +550,8 @@ func TestKeyTracker_Get(t *testing.T) {
 
 	// Create a new KeyTracker instance
 	tracker := &KeyTracker{
-		keys:   map[string]KeyData{},
-		kind:   ScanObjectTypeFile,
+		Keys:   KeyDataMap{},
+		Kind:   ScanObjectTypeFile,
 		logger: nil,
 		mu:     &sync.RWMutex{},
 	}
@@ -561,7 +562,7 @@ func TestKeyTracker_Get(t *testing.T) {
 		Code:  KeyCodeInit,
 		State: KeyStateInit,
 	}
-	tracker.keys[testKey] = testData
+	tracker.Keys[testKey] = testData
 
 	// Test case: Existing key
 	t.Run("ExistingKey", func(t *testing.T) {
@@ -883,22 +884,22 @@ func TestKeyTracker_GetKeys(t *testing.T) {
 
 	// create a new KeyTracker instance
 	tracker := &KeyTracker{
-		keys:   map[string]KeyData{},
-		kind:   ScanObjectTypeFile,
+		Keys:   KeyDataMap{},
+		Kind:   ScanObjectTypeFile,
 		logger: nil,
 		mu:     &sync.RWMutex{},
 	}
 
 	// add some test data to the tracker
-	tracker.keys["key1"] = KeyData{
+	tracker.Keys["key1"] = KeyData{
 		Code:  KeyCodeInit,
 		State: KeyStateInit,
 	}
-	tracker.keys["key2"] = KeyData{
+	tracker.Keys["key2"] = KeyData{
 		Code:  KeyCodeComplete,
 		State: KeyStateComplete,
 	}
-	tracker.keys["key3"] = KeyData{
+	tracker.Keys["key3"] = KeyData{
 		Code:  KeyCodeError,
 		State: KeyStateError,
 	}
@@ -917,8 +918,8 @@ func TestKeyTracker_GetKeysData(t *testing.T) {
 
 	// create a new KeyTracker instance
 	tracker := &KeyTracker{
-		keys:   map[string]KeyData{},
-		kind:   ScanObjectTypeFile,
+		Keys:   KeyDataMap{},
+		Kind:   ScanObjectTypeFile,
 		logger: nil,
 		mu:     &sync.RWMutex{},
 	}
@@ -929,71 +930,71 @@ func TestKeyTracker_GetKeysData(t *testing.T) {
 		Code:  KeyCodeInit,
 		State: KeyStateInit,
 	}
-	tracker.keys[test_key_init] = test_data_init
+	tracker.Keys[test_key_init] = test_data_init
 	test_key_error := "test_key_error"
 	test_data_error := KeyData{
 		Code:    KeyCodeError,
 		Message: test_message_error,
 		State:   KeyStateError,
 	}
-	tracker.keys[test_key_error] = test_data_error
+	tracker.Keys[test_key_error] = test_data_error
 	test_key_ignore := "test_key_ignore"
 	test_data_ignore := KeyData{
 		Code:    KeyCodeIgnore,
 		Message: test_message_ignore,
 		State:   KeyStateIgnore,
 	}
-	tracker.keys[test_key_ignore] = test_data_ignore
+	tracker.Keys[test_key_ignore] = test_data_ignore
 	test_key_pending := "test_key_pending"
 	test_data_pending := KeyData{
 		Code:    KeyCodePending,
 		Message: test_message_pending,
 		State:   KeyStatePending,
 	}
-	tracker.keys[test_key_pending] = test_data_pending
+	tracker.Keys[test_key_pending] = test_data_pending
 	test_key_complete_1 := "test_key_complete_1"
 	test_data_complete_1 := KeyData{
 		Code:    KeyCodeComplete,
 		Message: test_message_complete,
 		State:   KeyStateComplete,
 	}
-	tracker.keys[test_key_complete_1] = test_data_complete_1
+	tracker.Keys[test_key_complete_1] = test_data_complete_1
 	test_key_complete_2 := "test_key_complete_2"
 	test_data_complete_2 := KeyData{
 		Code:    KeyCodeComplete,
 		Message: test_message_complete,
 		State:   KeyStateComplete,
 	}
-	tracker.keys[test_key_complete_2] = test_data_complete_2
+	tracker.Keys[test_key_complete_2] = test_data_complete_2
 
 	// call the GetKeysData method
 	keysData := tracker.GetKeysData()
 	// check if the returned map is equal to the original keys map
-	assert.Equal(t, tracker.keys, keysData)
+	assert.Equal(t, tracker.Keys, keysData)
 
 	// get KeyData for each element where the Code is KeyCodeInit
 	keys_data_init, init_err := tracker.GetKeysDataForCode(KeyCodeInit)
 	assert.NoError(t, init_err)
 	assert.Equal(t, 1, len(keys_data_init))
-	assert.Equal(t, map[string]KeyData{test_key_init: test_data_init}, keys_data_init)
+	assert.Equal(t, KeyDataMap{test_key_init: test_data_init}, keys_data_init)
 
 	// get KeyData for each element where the Code is KeyCodeError
 	keys_data_error, error_err := tracker.GetKeysDataForCode(KeyCodeError)
 	assert.NoError(t, error_err)
 	assert.Equal(t, 1, len(keys_data_error))
-	assert.Equal(t, map[string]KeyData{test_key_error: test_data_error}, keys_data_error)
+	assert.Equal(t, KeyDataMap{test_key_error: test_data_error}, keys_data_error)
 
 	// get KeyData for each element where the Code is KeyCodeIgnore
 	keys_data_ignore, ignore_err := tracker.GetKeysDataForCode(KeyCodeIgnore)
 	assert.NoError(t, ignore_err)
 	assert.Equal(t, 1, len(keys_data_ignore))
-	assert.Equal(t, map[string]KeyData{test_key_ignore: test_data_ignore}, keys_data_ignore)
+	assert.Equal(t, KeyDataMap{test_key_ignore: test_data_ignore}, keys_data_ignore)
 
 	// get KeyData for each element where the Code is KeyCodePending
 	keys_data_pending, pending_err := tracker.GetKeysDataForCode(KeyCodePending)
 	assert.NoError(t, pending_err)
 	assert.Equal(t, 1, len(keys_data_pending))
-	assert.Equal(t, map[string]KeyData{test_key_pending: test_data_pending}, keys_data_pending)
+	assert.Equal(t, KeyDataMap{test_key_pending: test_data_pending}, keys_data_pending)
 
 	// get KeyData for each element where the Code is KeyCodeComplete
 	keys_data_complete, complete_err := tracker.GetKeysDataForCode(KeyCodeComplete)
@@ -1001,7 +1002,7 @@ func TestKeyTracker_GetKeysData(t *testing.T) {
 	assert.Equal(t, 2, len(keys_data_complete))
 	assert.Equal(
 		t,
-		map[string]KeyData{
+		KeyDataMap{
 			test_key_complete_1: test_data_complete_1,
 			test_key_complete_2: test_data_complete_2,
 		},
@@ -1025,22 +1026,22 @@ func TestKeyTracker_PrintCodes(t *testing.T) {
 
 	// create a new KeyTracker instance
 	tracker := &KeyTracker{
-		keys:   map[string]KeyData{},
-		kind:   ScanObjectTypeFile,
+		Keys:   KeyDataMap{},
+		Kind:   ScanObjectTypeFile,
 		logger: &logger,
 		mu:     &sync.RWMutex{},
 	}
 
 	// add some test data to the tracker
-	tracker.keys["key1"] = KeyData{
+	tracker.Keys["key1"] = KeyData{
 		Code:  KeyCodeInit,
 		State: KeyStateInit,
 	}
-	tracker.keys["key2"] = KeyData{
+	tracker.Keys["key2"] = KeyData{
 		Code:  KeyCodeComplete,
 		State: KeyStateComplete,
 	}
-	tracker.keys["key3"] = KeyData{
+	tracker.Keys["key3"] = KeyData{
 		Code:  KeyCodeError,
 		State: KeyStateError,
 	}
@@ -1065,22 +1066,22 @@ func TestKeyTracker_PrintCounts(t *testing.T) {
 
 	// create a new KeyTracker instance
 	tracker := &KeyTracker{
-		keys:   map[string]KeyData{},
-		kind:   ScanObjectTypeFile,
+		Keys:   KeyDataMap{},
+		Kind:   ScanObjectTypeFile,
 		logger: &logger,
 		mu:     &sync.RWMutex{},
 	}
 
 	// add some test data to the tracker
-	tracker.keys["key1"] = KeyData{
+	tracker.Keys["key1"] = KeyData{
 		Code:  KeyCodeInit,
 		State: KeyStateInit,
 	}
-	tracker.keys["key2"] = KeyData{
+	tracker.Keys["key2"] = KeyData{
 		Code:  KeyCodeComplete,
 		State: KeyStateComplete,
 	}
-	tracker.keys["key3"] = KeyData{
+	tracker.Keys["key3"] = KeyData{
 		Code:  KeyCodeError,
 		State: KeyStateError,
 	}
@@ -1096,6 +1097,92 @@ func TestKeyTracker_PrintCounts(t *testing.T) {
 	// call the PrintCounts() methodV
 	actual_key_data_counts := tracker.PrintCounts()
 	assert.Equal(t, expected_key_data_counts, actual_key_data_counts)
+}
+
+// TestKeyTracker_Restore unit test function tests the Restore() method
+// of the KeyTracker type.
+func TestKeyTracker_Restore(t *testing.T) {
+	t.Parallel()
+
+	// create a new KeyTracker instance
+	trckr := &KeyTracker{
+		Keys:   make(KeyDataMap),
+		Kind:   ScanObjectTypeFile,
+		logger: nil,
+		mu:     &sync.RWMutex{},
+	}
+
+	// add some test data to the tracker
+	test_key_init := "test_key_init"
+	test_data_init := KeyData{
+		Code:  KeyCodeInit,
+		State: KeyStateInit,
+	}
+	trckr.Keys[test_key_init] = test_data_init
+	test_key_error := "test_key_error"
+	test_data_error := KeyData{
+		Code:    KeyCodeError,
+		Message: test_message_error,
+		State:   KeyStateError,
+	}
+	trckr.Keys[test_key_error] = test_data_error
+	test_key_ignore := "test_key_ignore"
+	test_data_ignore := KeyData{
+		Code:    KeyCodeIgnore,
+		Message: test_message_ignore,
+		State:   KeyStateIgnore,
+	}
+	trckr.Keys[test_key_ignore] = test_data_ignore
+	test_key_pending := "test_key_pending"
+	test_data_pending := KeyData{
+		Code:    KeyCodePending,
+		Message: test_message_pending,
+		State:   KeyStatePending,
+	}
+	trckr.Keys[test_key_pending] = test_data_pending
+	test_key_complete_1 := "test_key_complete_1"
+	test_data_complete_1 := KeyData{
+		Code:    KeyCodeComplete,
+		Message: test_message_complete,
+		State:   KeyStateComplete,
+	}
+	trckr.Keys[test_key_complete_1] = test_data_complete_1
+	test_key_complete_2 := "test_key_complete_2"
+	test_data_complete_2 := KeyData{
+		Code:    KeyCodeComplete,
+		Message: test_message_complete,
+		State:   KeyStateComplete,
+	}
+	trckr.Keys[test_key_complete_2] = test_data_complete_2
+
+	// call the GetKeysData method
+	tracker_keys_data := trckr.GetKeysData()
+	assert.Equal(t, len(trckr.Keys), len(tracker_keys_data))
+	// check if the returned map is equal to the original keys map
+	assert.Equal(t, trckr.Keys, tracker_keys_data)
+
+	// create a new KeyTracker instance
+	trckr_new := &KeyTracker{
+		Keys:   make(KeyDataMap),
+		Kind:   ScanObjectTypeFile,
+		logger: nil,
+		mu:     &sync.RWMutex{},
+	}
+
+	test_key_complete_3 := "test_key_complete_3"
+	test_data_complete_3 := KeyData{
+		Code:    KeyCodeComplete,
+		Message: test_message_complete,
+		State:   KeyStateComplete,
+	}
+	// write some new data to the new tracker before restore so that we can
+	// check if it is correctly overwritten
+	trckr_new.Keys[test_key_complete_3] = test_data_complete_3
+
+	trckr_new.Restore(tracker_keys_data)
+	assert.Equal(t, trckr.Kind, trckr_new.Kind)
+	assert.Equal(t, len(trckr.Keys), len(trckr_new.Keys))
+	assert.Equal(t, trckr.Keys, trckr_new.Keys)
 }
 
 // TestKeyTracker_Update() unit test function tests the Update() method
@@ -1155,7 +1242,7 @@ func TestKeyTracker_Update(t *testing.T) {
 			kind:      ScanObjectTypeCommit,
 		},
 		{
-			name: "InvalidKey",
+			name: "ErrorOnEmptyKey",
 			data: []testData{
 				{
 					children:        []string{},
@@ -1168,6 +1255,38 @@ func TestKeyTracker_Update(t *testing.T) {
 			final:     KeyData{},
 			init_err:  nil,
 			key_empty: true,
+			kind:      ScanObjectTypeRequestResponse,
+		},
+		{
+			name: "ErrorOnInvalidUpdateCodeLow",
+			data: []testData{
+				{
+					children:        []string{},
+					code:            KeyCodeInit - 1,
+					expect_code:     0,
+					expect_code_err: errors.New("failed to update data for key"),
+					message:         "",
+				},
+			},
+			final:     KeyData{},
+			init_err:  nil,
+			key_empty: false,
+			kind:      ScanObjectTypeRequestResponse,
+		},
+		{
+			name: "ErrorOnInvalidUpdateCodeHigh",
+			data: []testData{
+				{
+					children:        []string{},
+					code:            KeyCodeComplete + 1,
+					expect_code:     0,
+					expect_code_err: errors.New("failed to update data for key"),
+					message:         "",
+				},
+			},
+			final:     KeyData{},
+			init_err:  nil,
+			key_empty: false,
 			kind:      ScanObjectTypeRequestResponse,
 		},
 		{
@@ -1581,6 +1700,62 @@ func TestKeyTracker_Update(t *testing.T) {
 			key_empty: false,
 			kind:      ScanObjectTypeFile,
 		},
+		{
+			name: "IncompleteUpdates",
+			data: []testData{
+				{
+					children: []string{
+						"child1",
+						"child2",
+						"child3",
+						"child4",
+						"child5",
+						"child6",
+						"child7",
+						"child8",
+						"child9",
+						"child10",
+					},
+					code:            KeyCodePending,
+					expect_code:     KeyCodePending,
+					expect_code_err: nil,
+					message:         test_message_pending,
+				},
+				{
+					children: []string{
+						"child1",
+						"child2",
+						"child3",
+						"child4",
+						"child5",
+					},
+					code:            KeyCodeComplete,
+					expect_code:     KeyCodePending,
+					expect_code_err: nil,
+					message:         "partial update",
+				},
+			},
+			final: KeyData{
+				Children: map[string]bool{
+					"child1":  true,
+					"child2":  true,
+					"child3":  true,
+					"child4":  true,
+					"child5":  true,
+					"child6":  false,
+					"child7":  false,
+					"child8":  false,
+					"child9":  false,
+					"child10": false,
+				},
+				Code:    KeyCodePending,
+				Message: "partial update",
+				State:   KeyStatePending,
+			},
+			init_err:  nil,
+			key_empty: false,
+			kind:      ScanObjectTypeFile,
+		},
 	}
 
 	for _, test_i := range tests {
@@ -1604,7 +1779,7 @@ func TestKeyTracker_Update(t *testing.T) {
 					return
 				}
 				assert.NoError(t, update_err)
-				assert.Exactly(t, d.expect_code, updated_code)
+				assert.Exactly(t, d.expect_code, updated_code, "updated code mismatch")
 			}
 
 			// get the data for the key after applying all updates

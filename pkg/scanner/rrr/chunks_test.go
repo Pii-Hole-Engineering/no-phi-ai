@@ -23,22 +23,6 @@ var (
 func TestChunkFileToRequests(t *testing.T) {
 	t.Parallel()
 
-	fileObjectFuncGenerateFromPath := func(repo, commit, path string) *object.File {
-		o := &plumbing.MemoryObject{}
-		o.SetType(plumbing.BlobObject)
-		o.SetSize(3)
-
-		writer, err := o.Writer()
-		assert.NoError(t, err)
-		defer func() { assert.NoError(t, writer.Close()) }()
-
-		writer.Write([]byte(path))
-
-		blob := &object.Blob{}
-		blob.Decode(o)
-		return object.NewFile(path, filemode.Regular, blob)
-	}
-
 	fileObjectFuncFixture := func(repo, commit, path string) *object.File {
 		f := fixtures.ByURL(repo).One()
 		sto := filesystem.NewStorage(f.DotGit(), cache.NewObjectLRUDefault())
@@ -58,15 +42,36 @@ func TestChunkFileToRequests(t *testing.T) {
 		return file
 	}
 
+	fileObjectFuncGenerateFromPath := func(repo, commit, path string) *object.File {
+		o := &plumbing.MemoryObject{}
+		o.SetType(plumbing.BlobObject)
+		o.SetSize(int64(len(path)))
+
+		writer, err := o.Writer()
+		assert.NoError(t, err)
+		defer func() { assert.NoError(t, writer.Close()) }()
+
+		writer.Write([]byte(path))
+
+		blob := &object.Blob{}
+		blob.Decode(o)
+		return object.NewFile(path, filemode.Regular, blob)
+	}
+
+	fileObjectFuncGenerateZeroSize := func(repo, commit, path string) *object.File {
+		o := &plumbing.MemoryObject{}
+		o.SetType(plumbing.BlobObject)
+		o.SetSize(0)
+
+		blob := &object.Blob{}
+		blob.Decode(o)
+		return object.NewFile(path, filemode.Regular, blob)
+	}
+
 	now := TimestampNow()
 	// sleep for a short duration to ensure the Start timestamp of each
 	// Request is greater than the current (now) timestamp
 	time.Sleep(2 * time.Millisecond)
-
-	var (
-		test_chunk_line_prefix = "test-chunk-line-prefix"
-		test_chunk_line_suffix = "test-chunk-line-suffix"
-	)
 
 	tests := []struct {
 		commit_id         string
@@ -91,57 +96,14 @@ func TestChunkFileToRequests(t *testing.T) {
 			repo_id:        "",
 		},
 		{
-			commit_id:      "a2c08a18a1426688b8e80a5c11fad48815817926",
-			expected_error: ErrChunkFileToRequestsFailed, // TODO : should not error
-			expected_requests: []Request{
-				{
-					MetadataRequestResponse: MetadataRequestResponse{
-						ID: "ABC",
-						Commit: MetadataRequestResponseCommit{
-							ID: "a2c08a18a1426688b8e80a5c11fad48815817926",
-						},
-						Object: MetadataRequestResponseObject{
-							ID:     "123",
-							Length: len(test_chunk_line_prefix),
-							Offset: 0,
-						},
-						Repository: MetadataRequestResponseRepository{
-							ID:  "test_repo",
-							URL: "",
-						},
-						Time: MetadataRequestResponseTime{
-							Start: now,
-							Stop:  0,
-						},
-					},
-				},
-				{
-					MetadataRequestResponse: MetadataRequestResponse{
-						ID: "XYZ",
-						Commit: MetadataRequestResponseCommit{
-							ID: "a2c08a18a1426688b8e80a5c11fad48815817926",
-						},
-						Object: MetadataRequestResponseObject{
-							ID:     "789",
-							Length: len(test_chunk_line_suffix),
-							Offset: len(test_chunk_line_prefix),
-						},
-						Repository: MetadataRequestResponseRepository{
-							ID:  "test_repo",
-							URL: "",
-						},
-						Time: MetadataRequestResponseTime{
-							Start: now,
-							Stop:  0,
-						},
-					},
-				},
-			},
-			fileObjectFunc: fileObjectFuncGenerateFromPath,
-			file_path:      test_chunk_line_prefix + " " + test_chunk_line_suffix,
-			max_chunk_size: 30,
-			name:           "FileLongLine",
-			repo_id:        "test_repo",
+			commit_id:         "a2c08a18a1426688b8e80a5c11fad48815817926",
+			expected_error:    nil,
+			expected_requests: []Request{},
+			fileObjectFunc:    fileObjectFuncGenerateZeroSize,
+			file_path:         "test.empty.blob",
+			max_chunk_size:    1000,
+			name:              "FileEmptyBlob",
+			repo_id:           "test_repo",
 		},
 		{
 			commit_id:      "a2c08a18a1426688b8e80a5c11fad48815817926",
@@ -565,6 +527,4 @@ func TestChunkLineToRequests(t *testing.T) {
 			assert.Equal(t, test.expected_final_offset, final_offset)
 		})
 	}
-
-	// TODO
 }
